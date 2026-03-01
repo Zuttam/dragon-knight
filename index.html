@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Dragon Knight</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="login-overlay" style="display: none;">
+    <div class="login-box">
+      <h1>Dragon Knight</h1>
+      <p class="subtitle">Sneak. Strike. Survive.</p>
+      <input type="text" id="player-name" placeholder="Enter your name, Knight..." maxlength="20" />
+      <button id="start-btn">Begin Quest</button>
+      <button id="continue-btn" style="display: none;">Continue Quest</button>
+      <div class="save-actions">
+        <button id="import-btn" class="small-btn">Import Save</button>
+        <input type="file" id="import-file" accept=".md" style="display: none;" />
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
