@@ -300,6 +300,10 @@ export class LoginState implements GameState {
       renderTrackList();
     }
 
+    // Start music playback when entering the form
+    musicManager.applySettings(musicEnabledCb.checked, parseInt(musicVolumeSlider.value, 10) / 100);
+    musicManager.play();
+
     // Show/hide back button
     backBtn.style.display = (hasProfiles || isEditing) ? 'block' : 'none';
 
