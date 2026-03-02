@@ -16,7 +16,7 @@ export class CombatSystem {
     let damage = knight.attackPower;
 
     // Surprise attack multiplier (dragon is unaware)
-    if (dragon.aiState === DragonAIState.PATROL || dragon.aiState === DragonAIState.SEARCH) {
+    if (dragon.aiState === DragonAIState.SLEEP || dragon.aiState === DragonAIState.PATROL || dragon.aiState === DragonAIState.SEARCH) {
       damage *= KNIGHT_SURPRISE_MULTIPLIER;
     }
 
@@ -43,7 +43,7 @@ export class CombatSystem {
 
     if (Math.abs(angleDiff) > Math.PI / 6) return 0; // 30deg fire cone
 
-    let damage = DRAGON_FIRE_DAMAGE_PER_SEC * (delta / 1000);
+    let damage = DRAGON_FIRE_DAMAGE_PER_SEC * dragon.fireDamageMultiplier * (delta / 1000);
 
     if (knight.hasFireResist) {
       damage *= knight.fireResistMultiplier;

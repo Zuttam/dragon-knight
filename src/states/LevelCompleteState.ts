@@ -1,25 +1,26 @@
 import type { GameState } from '../core/GameState';
 import type { Game } from '../core/Game';
+import type { UserSettings } from '../save/SaveSystem';
 import { LevelCompleteOverlay } from '../ui/LevelCompleteOverlay';
 
 export class LevelCompleteState implements GameState {
   private overlay = new LevelCompleteOverlay();
-  private onContinue: (playerName: string, nextLevel: number) => void;
+  private onContinue: (settings: UserSettings, nextLevel: number) => void;
   private onMenu: () => void;
 
   constructor(
-    onContinue: (playerName: string, nextLevel: number) => void,
+    onContinue: (settings: UserSettings, nextLevel: number) => void,
     onMenu: () => void
   ) {
     this.onContinue = onContinue;
     this.onMenu = onMenu;
   }
 
-  enter(game: Game, data: { playerName: string; level: number; nextLevel: number }): void {
+  enter(game: Game, data: { settings: UserSettings; level: number; nextLevel: number }): void {
     this.overlay.show(
-      data.playerName,
+      data.settings.playerName,
       data.level,
-      () => this.onContinue(data.playerName, data.nextLevel),
+      () => this.onContinue(data.settings, data.nextLevel),
       () => this.onMenu()
     );
   }

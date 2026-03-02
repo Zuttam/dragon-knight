@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { lerp, clamp } from '../core/MathUtils';
+import { TILT_FACTOR } from '../config/constants';
 
 export class CameraController {
   private camera: THREE.OrthographicCamera;
@@ -12,27 +13,42 @@ export class CameraController {
   private offsetZ: number = 10;
 
   private viewSize: number = 12;
+  private worldWidth: number = 0;
+  private worldHeight: number = 0;
+
+  private resizeHandler: (() => void) | null = null;
 
   constructor(camera: THREE.OrthographicCamera) {
     this.camera = camera;
   }
 
   /**
-   * Configure the camera to fit the world nicely on screen.
-   * Shows a comfortable amount of the dungeon around the knight.
+   * Configure the camera to show the entire world on screen.
+   * Accounts for isometric camera tilt when computing the frustum.
    */
   configureForWorld(worldWidth: number, worldHeight: number): void {
+    this.worldWidth = worldWidth;
+    this.worldHeight = worldHeight;
+    this.updateFrustum();
+
+    // Re-compute frustum on window resize
+    if (!this.resizeHandler) {
+      this.resizeHandler = () => this.updateFrustum();
+      window.addEventListener('resize', this.resizeHandler);
+    }
+  }
+
+  private updateFrustum(): void {
+    if (this.worldWidth === 0) return;
     const aspect = window.innerWidth / window.innerHeight;
 
-    // For the isometric view, we see ~70% of vertical extent on screen
-    // due to the camera angle. Choose viewSize to show a good chunk of the level.
-    // Show roughly half the level height as the vertical view.
-    const desiredViewH = Math.max(worldHeight * 0.55, 10);
-    const desiredViewW = Math.max(worldWidth * 0.55, 10);
+    // viewSize to fit full width:  2 * viewSize * aspect >= worldWidth
+    const viewSizeForWidth = this.worldWidth / (2 * aspect);
+    // viewSize to fit full height: 2 * TILT_FACTOR * viewSize >= worldHeight
+    const viewSizeForHeight = this.worldHeight / (2 * TILT_FACTOR);
 
-    // Pick the larger needed extent
-    this.viewSize = Math.max(desiredViewH / 2, desiredViewW / (2 * aspect));
-    this.viewSize = clamp(this.viewSize, 8, 25);
+    // Pick whichever is larger (levels are padded to fill the screen)
+    this.viewSize = Math.max(viewSizeForWidth, viewSizeForHeight);
 
     this.camera.left = -this.viewSize * aspect;
     this.camera.right = this.viewSize * aspect;
@@ -52,15 +68,16 @@ export class CameraController {
 
   /**
    * Smoothly move camera toward target, clamped to world bounds.
+   * Uses tilt-corrected Z extent so the full map stays visible.
    */
   update(worldWidth: number, worldHeight: number): void {
-    const aspect = this.camera.right / this.camera.top;
-    const viewH = this.camera.top;
-    const viewW = viewH * aspect;
+    const viewW = this.camera.right; // half-width in world X
+    // Actual Z half-extent on the ground, accounting for camera tilt
+    const viewZExtent = this.camera.top * TILT_FACTOR;
 
     // Clamp target so camera doesn't show outside the map
     const clampedX = clamp(this.targetX, viewW, Math.max(worldWidth - viewW, viewW));
-    const clampedZ = clamp(this.targetZ, viewH, Math.max(worldHeight - viewH, viewH));
+    const clampedZ = clamp(this.targetZ, viewZExtent, Math.max(worldHeight - viewZExtent, viewZExtent));
 
     // Smooth follow
     const cx = lerp(this.camera.position.x, clampedX, this.smoothing);
@@ -71,12 +88,26 @@ export class CameraController {
   }
 
   /**
-   * Instantly snap to target (no lerp).
+   * Instantly snap to target (no lerp), clamped to world bounds.
    */
   snapToTarget(tileX: number, tileY: number): void {
     this.targetX = tileX;
     this.targetZ = tileY;
-    this.camera.position.set(tileX, this.offsetY, tileY + this.offsetZ);
-    this.camera.lookAt(tileX, 0, tileY);
+
+    const viewW = this.camera.right;
+    const viewZExtent = this.camera.top * TILT_FACTOR;
+
+    const cx = clamp(tileX, viewW, Math.max(this.worldWidth - viewW, viewW));
+    const cz = clamp(tileY, viewZExtent, Math.max(this.worldHeight - viewZExtent, viewZExtent));
+
+    this.camera.position.set(cx, this.offsetY, cz + this.offsetZ);
+    this.camera.lookAt(cx, 0, cz);
+  }
+
+  dispose(): void {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
   }
 }

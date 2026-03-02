@@ -8,6 +8,12 @@ export interface BurningTileState {
   startTime: number;
 }
 
+export interface TorchState {
+  x: number;
+  y: number;
+  lit: boolean;
+}
+
 export interface TreasureState {
   x: number;
   y: number;
@@ -22,13 +28,15 @@ export interface WorldState {
   woodWallHP: Map<string, number>;
   burningTiles: Map<string, BurningTileState>;
   treasures: TreasureState[];
+  torches: TorchState[];
 }
 
 export function createWorldState(
   tiles: TileType[][],
   width: number,
   height: number,
-  treasurePositions: { x: number; y: number }[]
+  treasurePositions: { x: number; y: number }[],
+  torchPositions?: { x: number; y: number; lit: boolean }[]
 ): WorldState {
   const woodWallHP = new Map<string, number>();
   for (let y = 0; y < height; y++) {
@@ -47,6 +55,12 @@ export function createWorldState(
     collected: false,
   }));
 
+  const torches: TorchState[] = (torchPositions || []).map(t => ({
+    x: t.x,
+    y: t.y,
+    lit: t.lit,
+  }));
+
   return {
     tiles: tiles.map(row => [...row]),
     width,
@@ -54,5 +68,6 @@ export function createWorldState(
     woodWallHP,
     burningTiles: new Map(),
     treasures,
+    torches,
   };
 }

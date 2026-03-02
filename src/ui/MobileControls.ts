@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 export class MobileControls {
   private container: HTMLElement | null = null;
   private joystickBase: HTMLElement | null = null;
@@ -30,7 +32,7 @@ export class MobileControls {
           <div id="joystick-thumb"></div>
         </div>
       </div>
-      <div id="attack-btn">ATTACK</div>
+      <div id="attack-btn">${t('mobile.attack')}</div>
     `;
     document.body.appendChild(this.container);
 

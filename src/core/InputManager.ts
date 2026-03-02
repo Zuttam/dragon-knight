@@ -29,7 +29,7 @@ export class InputManager {
     });
     // Prevent default on game keys
     window.addEventListener('keydown', (e) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyE'].includes(e.code)) {
         e.preventDefault();
       }
     });
@@ -67,5 +67,8 @@ export class InputManager {
   }
   get attack(): boolean {
     return this.justPressed('Space');
+  }
+  get interact(): boolean {
+    return this.justPressed('KeyE');
   }
 }

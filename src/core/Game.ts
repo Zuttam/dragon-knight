@@ -22,10 +22,10 @@ export class Game {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
 
-    // Renderer
+    // Renderer — setPixelRatio must come before setSize
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(this.width, this.height);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x1a1a2e);
@@ -111,14 +111,7 @@ export class Game {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
     this.renderer.setSize(this.width, this.height);
-
-    const aspect = this.width / this.height;
-    const viewSize = 12;
-    this.camera.left = -viewSize * aspect;
-    this.camera.right = viewSize * aspect;
-    this.camera.top = viewSize;
-    this.camera.bottom = -viewSize;
-    this.camera.updateProjectionMatrix();
+    // Camera frustum is managed by CameraController (which listens to resize itself)
   }
 
   destroy(): void {

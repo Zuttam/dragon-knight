@@ -10,14 +10,83 @@
   <div id="game-container"></div>
   <div id="login-overlay" style="display: none;">
     <div class="login-box">
-      <h1>Dragon Knight</h1>
-      <p class="subtitle">Sneak. Strike. Survive.</p>
-      <input type="text" id="player-name" placeholder="Enter your name, Knight..." maxlength="20" />
-      <button id="start-btn">Begin Quest</button>
-      <button id="continue-btn" style="display: none;">Continue Quest</button>
-      <div class="save-actions">
-        <button id="import-btn" class="small-btn">Import Save</button>
-        <input type="file" id="import-file" accept=".md" style="display: none;" />
+      <img src="/dragon-knight.png" alt="Dragon Knight" class="login-cover" />
+      <h1 class="sr-only" data-i18n="login.title">Dragon Knight</h1>
+      <p class="subtitle" data-i18n="login.subtitle">Sneak. Strike. Survive.</p>
+
+      <!-- View 1: Profile List -->
+      <div id="profile-list-view" style="display: none;">
+        <div id="profile-list"></div>
+        <div class="profile-actions-row">
+          <button id="new-knight-btn" class="overlay-btn primary-btn" data-i18n="login.newKnight">New Knight</button>
+          <button id="import-btn" class="overlay-btn secondary-btn" data-i18n="login.importSave">Import Save</button>
+          <input type="file" id="import-file" accept=".md,.dragonknight,.zip" style="display: none;" />
+        </div>
+      </div>
+
+      <!-- View 2: Settings Form -->
+      <div id="settings-form-view" style="display: none;">
+        <input type="text" id="player-name" data-i18n-placeholder="login.namePlaceholder" placeholder="Enter your name, Knight..." maxlength="20" />
+        <select id="player-language">
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="zh">Chinese</option>
+          <option value="ar">Arabic</option>
+          <option value="he">Hebrew</option>
+          <option value="ru">Russian</option>
+        </select>
+        <input type="number" id="player-age" data-i18n-placeholder="login.age" placeholder="Age" min="5" max="120" />
+
+        <div class="music-settings-section">
+          <label class="toggle-row">
+            <input type="checkbox" id="music-enabled" checked />
+            <span data-i18n="login.enableMusic">Background Music</span>
+          </label>
+          <div id="music-volume-row" class="volume-row">
+            <label class="volume-label" data-i18n="login.musicVolume">Music Volume</label>
+            <input type="range" id="music-volume" min="0" max="100" value="50" class="volume-slider" />
+          </div>
+          <div id="music-tracks-section" class="music-tracks-section" style="display: none;">
+            <div class="music-tracks-header">
+              <span class="volume-label" data-i18n="login.customTracks">Custom Tracks</span>
+              <button type="button" id="upload-track-btn" class="small-btn upload-track-btn" data-i18n="login.uploadTrack">+ Upload</button>
+              <input type="file" id="track-file-input" accept="audio/mpeg,.mp3" style="display: none;" />
+            </div>
+            <div id="music-track-list" class="music-track-list"></div>
+          </div>
+        </div>
+
+        <!-- Advanced Settings (collapsible) -->
+        <details class="advanced-settings-section">
+          <summary class="advanced-settings-toggle" data-i18n="login.advancedSettings">Advanced Settings</summary>
+          <div class="advanced-settings-content">
+            <label class="toggle-row">
+              <input type="checkbox" id="wizard-enabled" checked />
+              <span data-i18n="login.enableWizard">Enable Wizard</span>
+            </label>
+            <div id="wizard-api-settings" class="api-key-row">
+              <div class="wizard-provider-select">
+                <label class="wizard-radio"><input type="radio" name="wizard-provider" value="anthropic" checked /> <span data-i18n="login.anthropic">Anthropic</span></label>
+                <label class="wizard-radio"><input type="radio" name="wizard-provider" value="openai" /> <span data-i18n="login.openai">OpenAI</span></label>
+              </div>
+              <div class="api-key-input-row">
+                <input type="password" id="wizard-api-key" class="wizard-api-key-field" data-i18n-placeholder="login.apiKey" placeholder="API Key" />
+                <button type="button" id="api-key-toggle" class="small-btn api-key-toggle-btn" data-i18n="login.show">Show</button>
+              </div>
+              <select id="wizard-model" class="wizard-api-key-field"></select>
+            </div>
+          </div>
+        </details>
+
+        <button id="start-btn" data-i18n="login.beginQuest">Begin Quest</button>
+        <button id="continue-btn" style="display: none;" data-i18n="login.continueQuest">Continue Quest</button>
+        <button id="back-btn" class="overlay-btn secondary-btn" style="display: none;" data-i18n="login.back">Back</button>
       </div>
     </div>
   </div>

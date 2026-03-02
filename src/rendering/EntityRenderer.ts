@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { ModelFactory } from './ModelFactory';
-import { KnightState, DragonStateData, DragonAIState, entityTileX, entityTileY } from '../state/EntityState';
+import { KnightState, DragonStateData, DragonAIState, WizardState, WizardDialogStatus, entityTileX, entityTileY } from '../state/EntityState';
 import { TreasureState } from '../state/WorldState';
 import { VisibilitySystem } from '../systems/VisibilitySystem';
 import { DRAGON_VISIBILITY_FADE_START, DRAGON_VISIBILITY_FADE_END } from '../config/constants';
-import { distance } from '../core/MathUtils';
+import { distance, angleBetween } from '../core/MathUtils';
 import { TweenManager } from '../core/TweenManager';
 
 export class EntityRenderer {
@@ -24,6 +24,13 @@ export class EntityRenderer {
   private dragonTailSegments: THREE.Object3D[] = [];
   private wingTime: number = 0;
   private tailTime: number = 0;
+
+  // Wizard
+  private wizardGroup: THREE.Group | null = null;
+  private wizardMaterials: THREE.MeshStandardMaterial[] = [];
+  private wizardOrb: THREE.Mesh | null = null;
+  private wizardLight: THREE.PointLight | null = null;
+  private wizardTime: number = 0;
 
   // Treasures
   private treasureModels: Map<number, THREE.Group> = new Map();
@@ -59,7 +66,7 @@ export class EntityRenderer {
     this.dragonTailSegments = [];
 
     this.dragonGroup.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry) {
+      if (child instanceof THREE.Mesh && child.name.startsWith('wing_')) {
         this.dragonWings.push(child);
       }
       if (child.name.startsWith('tail_')) {
@@ -76,6 +83,120 @@ export class EntityRenderer {
       model.position.set(t.x + 0.5, 0, t.y + 0.5);
       this.scene.add(model);
       this.treasureModels.set(i, model);
+    }
+  }
+
+  buildWizard(): void {
+    this.wizardGroup = ModelFactory.createWizard();
+    this.wizardGroup.visible = false;
+    this.scene.add(this.wizardGroup);
+    this.wizardMaterials = this.collectMaterials(this.wizardGroup);
+
+    // Find orb mesh
+    this.wizardGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name === 'wizard_orb') {
+        this.wizardOrb = child;
+      }
+    });
+
+    // Purple ambient light for wizard
+    this.wizardLight = new THREE.PointLight(0x9944cc, 0.8, 6);
+    this.wizardLight.position.y = 1.5;
+    this.wizardLight.visible = false;
+    this.scene.add(this.wizardLight);
+  }
+
+  updateWizard(wizard: WizardState, knight: KnightState, delta: number, visibility: VisibilitySystem): void {
+    if (!this.wizardGroup) return;
+
+    this.wizardTime += delta * 0.003;
+
+    // Position
+    this.wizardGroup.position.set(wizard.x, 0, wizard.y);
+    if (this.wizardLight) {
+      this.wizardLight.position.set(wizard.x, 1.5, wizard.y);
+    }
+
+    // Face the knight
+    const angle = angleBetween(wizard.x, wizard.y, knight.x, knight.y);
+    this.wizardGroup.rotation.y = -angle + Math.PI / 2;
+
+    // Fog of war check — hide wizard if in HIDDEN state or not visible
+    const wtx = entityTileX(wizard);
+    const wty = entityTileY(wizard);
+    const inFog = !visibility.visible[wty]?.[wtx];
+
+    if (wizard.dialogStatus === WizardDialogStatus.HIDDEN || inFog) {
+      this.wizardGroup.visible = false;
+      if (this.wizardLight) this.wizardLight.visible = false;
+      return;
+    }
+
+    this.wizardGroup.visible = true;
+
+    // Status-based appearance
+    switch (wizard.dialogStatus) {
+      case WizardDialogStatus.REVEALED: {
+        // Pulsing shimmer (0.1 - 0.3 opacity)
+        const shimmer = 0.2 + Math.sin(this.wizardTime * 3) * 0.1;
+        this.setMaterialsOpacity(this.wizardMaterials, shimmer);
+        if (this.wizardLight) {
+          this.wizardLight.visible = true;
+          this.wizardLight.intensity = shimmer * 2;
+        }
+        break;
+      }
+
+      case WizardDialogStatus.AVAILABLE:
+      case WizardDialogStatus.CHATTING: {
+        this.setMaterialsOpacity(this.wizardMaterials, 1.0);
+        if (this.wizardLight) {
+          this.wizardLight.visible = true;
+          this.wizardLight.intensity = 0.8;
+        }
+        break;
+      }
+
+      case WizardDialogStatus.DRAGON_NEARBY: {
+        this.setMaterialsOpacity(this.wizardMaterials, 1.0);
+        // Reddish warning tint
+        for (const mat of this.wizardMaterials) {
+          mat.emissive.setHex(0x882200);
+          mat.emissiveIntensity = 0.2 + Math.sin(this.wizardTime * 6) * 0.15;
+        }
+        if (this.wizardLight) {
+          this.wizardLight.visible = true;
+          this.wizardLight.color.setHex(0xff4422);
+          this.wizardLight.intensity = 0.5;
+        }
+        break;
+      }
+
+      case WizardDialogStatus.COMPLETED: {
+        this.setMaterialsOpacity(this.wizardMaterials, 0.4);
+        if (this.wizardLight) {
+          this.wizardLight.visible = true;
+          this.wizardLight.intensity = 0.2;
+          this.wizardLight.color.setHex(0x9944cc);
+        }
+        break;
+      }
+    }
+
+    // Reset emissive for non-dragon-nearby states
+    if (wizard.dialogStatus !== WizardDialogStatus.DRAGON_NEARBY) {
+      for (const mat of this.wizardMaterials) {
+        mat.emissive.setHex(0x000000);
+        mat.emissiveIntensity = 0;
+      }
+    }
+
+    // Orb pulse animation
+    if (this.wizardOrb && this.wizardOrb.material instanceof THREE.MeshStandardMaterial) {
+      const pulse = 0.5 + Math.sin(this.wizardTime * 2) * 0.4;
+      this.wizardOrb.material.emissiveIntensity = pulse;
+      // Orb always glows purple
+      this.wizardOrb.material.emissive.setHex(0x8844cc);
     }
   }
 
@@ -153,7 +274,7 @@ export class EntityRenderer {
     if (!this.dragonGroup) return;
 
     this.dragonGroup.position.set(dragon.x, 0, dragon.y);
-    this.dragonGroup.rotation.y = -dragon.facingAngle + Math.PI / 2;
+    this.dragonGroup.rotation.y = -dragon.facingAngle;
 
     // State-based tint (using cached materials)
     this.setDragonTint(dragon.aiState);
@@ -276,14 +397,20 @@ export class EntityRenderer {
     if (this.swordGroup) this.scene.remove(this.swordGroup);
     if (this.knightTorch) this.scene.remove(this.knightTorch);
     if (this.dragonGroup) this.scene.remove(this.dragonGroup);
+    if (this.wizardGroup) this.scene.remove(this.wizardGroup);
+    if (this.wizardLight) this.scene.remove(this.wizardLight);
     this.disposeTreasures();
     this.knightGroup = null;
     this.swordGroup = null;
     this.knightTorch = null;
     this.dragonGroup = null;
+    this.wizardGroup = null;
+    this.wizardOrb = null;
+    this.wizardLight = null;
     this.knightMaterials = [];
     this.dragonMaterials = [];
     this.dragonWings = [];
     this.dragonTailSegments = [];
+    this.wizardMaterials = [];
   }
 }

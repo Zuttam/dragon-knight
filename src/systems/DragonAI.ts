@@ -1,7 +1,13 @@
 import { DragonStateData, DragonAIState, entityTileX, entityTileY } from '../state/EntityState';
 import { TileType } from '../config/tileProperties';
-import { DRAGON_ALERT_DURATION, DRAGON_SEARCH_DURATION, DRAGON_FIRE_RANGE } from '../config/constants';
+import {
+  DRAGON_ALERT_DURATION, DRAGON_SEARCH_DURATION, DRAGON_FIRE_RANGE,
+  DRAGON_WAYPOINT_TIMEOUT, DRAGON_REPATH_INTERVAL,
+} from '../config/constants';
 import { distance, angleBetween } from '../core/MathUtils';
+import { findPath } from './Pathfinding';
+
+const PATH_NODE_THRESHOLD = 0.3; // tiles — close enough to advance to next path node
 
 export class DragonAI {
   update(
@@ -9,11 +15,21 @@ export class DragonAI {
     time: number,
     delta: number,
     playerDetected: boolean,
-    playerPos?: { x: number; y: number }
+    playerPos?: { x: number; y: number },
+    tiles?: TileType[][],
+    worldWidth?: number,
+    worldHeight?: number,
   ): void {
+    const prevState = dragon.aiState;
+
     switch (dragon.aiState) {
+      case DragonAIState.SLEEP:
+        dragon.vx = 0;
+        dragon.vy = 0;
+        break;
+
       case DragonAIState.PATROL:
-        this.doPatrol(dragon, delta);
+        this.doPatrol(dragon, time, delta, tiles, worldWidth, worldHeight);
         if (playerDetected && playerPos) {
           dragon.lastKnownPlayerPos = { ...playerPos };
           dragon.aiState = DragonAIState.ALERT;
@@ -26,6 +42,13 @@ export class DragonAI {
       case DragonAIState.ALERT:
         dragon.vx = 0;
         dragon.vy = 0;
+        // Face toward last known player position so visual detection works after noise alert
+        if (dragon.lastKnownPlayerPos) {
+          dragon.facingAngle = angleBetween(
+            dragon.x, dragon.y,
+            dragon.lastKnownPlayerPos.x + 0.5, dragon.lastKnownPlayerPos.y + 0.5,
+          );
+        }
         if (time >= dragon.alertTimer) {
           if (playerDetected && playerPos) {
             dragon.lastKnownPlayerPos = { ...playerPos };
@@ -38,40 +61,17 @@ export class DragonAI {
         break;
 
       case DragonAIState.ATTACK:
-        if (playerDetected && playerPos) {
-          dragon.lastKnownPlayerPos = { ...playerPos };
-          const targetX = playerPos.x + 0.5;
-          const targetY = playerPos.y + 0.5;
-          this.moveToward(dragon, targetX, targetY, dragon.speed * 1.2);
-          dragon.fireBreathing = true;
-        } else {
-          dragon.aiState = DragonAIState.SEARCH;
-          dragon.searchTimer = time + DRAGON_SEARCH_DURATION;
-          dragon.fireBreathing = false;
-        }
+        this.doAttack(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight);
         break;
 
       case DragonAIState.SEARCH:
-        if (playerDetected && playerPos) {
-          dragon.lastKnownPlayerPos = { ...playerPos };
-          dragon.aiState = DragonAIState.ATTACK;
-          dragon.searchFiring = false;
-        } else if (!dragon.searchFiring && dragon.lastKnownPlayerPos) {
-          const targetX = dragon.lastKnownPlayerPos.x + 0.5;
-          const targetY = dragon.lastKnownPlayerPos.y + 0.5;
-          this.moveToward(dragon, targetX, targetY, dragon.speed * 0.8);
-          const dist = distance(dragon.x, dragon.y, targetX, targetY);
-          if (dist < 0.5) {
-            dragon.lastKnownPlayerPos = null;
-          }
-        }
-
-        if (time >= dragon.searchTimer) {
-          dragon.aiState = DragonAIState.PATROL;
-          dragon.fireBreathing = false;
-          dragon.searchFiring = false;
-        }
+        this.doSearch(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight);
         break;
+    }
+
+    // Clear path on state transitions
+    if (dragon.aiState !== prevState) {
+      this.clearPath(dragon);
     }
   }
 
@@ -145,7 +145,12 @@ export class DragonAI {
     return result;
   }
 
-  private doPatrol(dragon: DragonStateData, delta: number): void {
+  // ── PATROL ─────────────────────────────────────────────────
+
+  private doPatrol(
+    dragon: DragonStateData, time: number, delta: number,
+    tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+  ): void {
     if (dragon.waypoints.length === 0) return;
 
     const wp = dragon.waypoints[dragon.currentWaypointIndex];
@@ -154,11 +159,169 @@ export class DragonAI {
     const dist = distance(dragon.x, dragon.y, targetX, targetY);
 
     if (dist < 0.15) {
-      dragon.currentWaypointIndex = (dragon.currentWaypointIndex + 1) % dragon.waypoints.length;
+      this.advanceWaypoint(dragon);
+      return;
+    }
+
+    // Stuck timeout — skip unreachable waypoints
+    if (dragon.waypointStuckTimer === 0) {
+      dragon.waypointStuckTimer = time;
+    }
+    if (time - dragon.waypointStuckTimer > DRAGON_WAYPOINT_TIMEOUT) {
+      this.advanceWaypoint(dragon);
+      return;
+    }
+
+    // Use BFS path-following if tiles are available
+    if (tiles && worldWidth && worldHeight) {
+      this.followPathToTile(dragon, wp.x, wp.y, dragon.speed, tiles, worldWidth, worldHeight, time);
     } else {
       this.moveToward(dragon, targetX, targetY, dragon.speed);
     }
   }
+
+  private advanceWaypoint(dragon: DragonStateData): void {
+    dragon.currentWaypointIndex = (dragon.currentWaypointIndex + 1) % dragon.waypoints.length;
+    this.clearPath(dragon);
+    dragon.waypointStuckTimer = 0;
+  }
+
+  // ── ATTACK ─────────────────────────────────────────────────
+
+  private doAttack(
+    dragon: DragonStateData, time: number, delta: number,
+    playerDetected: boolean,
+    playerPos?: { x: number; y: number },
+    tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+  ): void {
+    if (playerDetected && playerPos) {
+      dragon.lastKnownPlayerPos = { ...playerPos };
+      const playerWorldX = playerPos.x + 0.5;
+      const playerWorldY = playerPos.y + 0.5;
+
+      dragon.fireBreathing = true;
+
+      if (tiles && worldWidth && worldHeight) {
+        // Repath when target moves >2 tiles or on interval
+        const needsRepath = !dragon.lastPathTarget
+          || distance(playerPos.x, playerPos.y, dragon.lastPathTarget.x, dragon.lastPathTarget.y) > 2
+          || (time - dragon.lastPathComputeTime > DRAGON_REPATH_INTERVAL);
+
+        if (needsRepath) {
+          this.clearPath(dragon);
+        }
+
+        this.followPathToTile(dragon, playerPos.x, playerPos.y, dragon.speed * 1.2, tiles, worldWidth, worldHeight, time);
+      } else {
+        this.moveToward(dragon, playerWorldX, playerWorldY, dragon.speed * 1.2);
+      }
+
+      // Face the player directly (not the path node) so fire breath aims correctly
+      // Set this AFTER followPathToTile which overwrites facingAngle via moveToward
+      dragon.facingAngle = angleBetween(dragon.x, dragon.y, playerWorldX, playerWorldY);
+    } else {
+      dragon.aiState = DragonAIState.SEARCH;
+      dragon.searchTimer = time + DRAGON_SEARCH_DURATION;
+      dragon.fireBreathing = false;
+    }
+  }
+
+  // ── SEARCH ─────────────────────────────────────────────────
+
+  private doSearch(
+    dragon: DragonStateData, time: number, delta: number,
+    playerDetected: boolean,
+    playerPos?: { x: number; y: number },
+    tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+  ): void {
+    if (playerDetected && playerPos) {
+      dragon.lastKnownPlayerPos = { ...playerPos };
+      dragon.aiState = DragonAIState.ATTACK;
+      dragon.searchFiring = false;
+      return;
+    }
+
+    if (!dragon.searchFiring && dragon.lastKnownPlayerPos) {
+      const targetX = dragon.lastKnownPlayerPos.x + 0.5;
+      const targetY = dragon.lastKnownPlayerPos.y + 0.5;
+
+      if (tiles && worldWidth && worldHeight) {
+        this.followPathToTile(
+          dragon, dragon.lastKnownPlayerPos.x, dragon.lastKnownPlayerPos.y,
+          dragon.speed * 0.8, tiles, worldWidth, worldHeight, time,
+        );
+      } else {
+        this.moveToward(dragon, targetX, targetY, dragon.speed * 0.8);
+      }
+
+      const dist = distance(dragon.x, dragon.y, targetX, targetY);
+      if (dist < 0.5) {
+        dragon.lastKnownPlayerPos = null;
+        this.clearPath(dragon);
+      }
+    }
+
+    if (time >= dragon.searchTimer) {
+      dragon.aiState = DragonAIState.PATROL;
+      dragon.fireBreathing = false;
+      dragon.searchFiring = false;
+    }
+  }
+
+  // ── Path following ─────────────────────────────────────────
+
+  private followPathToTile(
+    dragon: DragonStateData,
+    goalTileX: number, goalTileY: number,
+    speed: number,
+    tiles: TileType[][], worldWidth: number, worldHeight: number,
+    time: number,
+  ): void {
+    // Compute path if we don't have one
+    if (!dragon.currentPath) {
+      const startX = entityTileX(dragon);
+      const startY = entityTileY(dragon);
+      const path = findPath(startX, startY, goalTileX, goalTileY, tiles, worldWidth, worldHeight);
+      if (!path) {
+        // No path — fall back to direct movement
+        this.moveToward(dragon, goalTileX + 0.5, goalTileY + 0.5, speed);
+        return;
+      }
+      dragon.currentPath = path;
+      dragon.currentPathIndex = 0;
+      dragon.lastPathTarget = { x: goalTileX, y: goalTileY };
+      dragon.lastPathComputeTime = time;
+    }
+
+    // Follow the path node by node
+    const path = dragon.currentPath;
+    let idx = dragon.currentPathIndex;
+
+    // Skip nodes we've already passed
+    while (idx < path.length - 1) {
+      const node = path[idx];
+      const nodeX = node.x + 0.5;
+      const nodeY = node.y + 0.5;
+      if (distance(dragon.x, dragon.y, nodeX, nodeY) < PATH_NODE_THRESHOLD) {
+        idx++;
+      } else {
+        break;
+      }
+    }
+    dragon.currentPathIndex = idx;
+
+    if (idx < path.length) {
+      const node = path[idx];
+      this.moveToward(dragon, node.x + 0.5, node.y + 0.5, speed);
+    }
+  }
+
+  private clearPath(dragon: DragonStateData): void {
+    dragon.currentPath = null;
+    dragon.currentPathIndex = 0;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────
 
   private moveToward(dragon: DragonStateData, tx: number, ty: number, speed: number): void {
     const angle = angleBetween(dragon.x, dragon.y, tx, ty);
@@ -172,6 +335,6 @@ export class DragonAI {
   }
 
   getFireRange(): number {
-    return DRAGON_FIRE_RANGE; // in tiles
+    return DRAGON_FIRE_RANGE;
   }
 }

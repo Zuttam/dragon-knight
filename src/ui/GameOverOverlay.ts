@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 export class GameOverOverlay {
   private container: HTMLElement | null = null;
 
@@ -7,10 +9,10 @@ export class GameOverOverlay {
     this.container.id = 'gameover-overlay';
     this.container.innerHTML = `
       <div class="overlay-box">
-        <h1 class="gameover-title">GAME OVER</h1>
-        <p class="gameover-subtitle">The dragon's flames consumed ${playerName}...</p>
-        <button id="retry-btn" class="overlay-btn primary-btn">Retry Level</button>
-        <button id="menu-btn" class="overlay-btn secondary-btn">Main Menu</button>
+        <h1 class="gameover-title">${t('gameOver.title')}</h1>
+        <p class="gameover-subtitle">${t('gameOver.subtitle', { name: playerName })}</p>
+        <button id="retry-btn" class="overlay-btn primary-btn">${t('gameOver.retry')}</button>
+        <button id="menu-btn" class="overlay-btn secondary-btn">${t('gameOver.mainMenu')}</button>
       </div>
     `;
     document.body.appendChild(this.container);

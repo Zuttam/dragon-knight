@@ -12,4 +12,8 @@ export interface LevelDefinition {
   treasurePositions: { x: number; y: number }[];
   dragonHP: number;
   dragonSpeedMultiplier: number;
+  dragonFireDamageMultiplier: number;
+  torchPositions?: { x: number; y: number; lit: boolean }[];
+  wizardSpawn?: { x: number; y: number };
+  dragonStartsPatrolling?: boolean;
 }

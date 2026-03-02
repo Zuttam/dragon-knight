@@ -1,9 +1,18 @@
 import { LevelDefinition } from './LevelDefinition';
-import { TileType } from '../config/tileProperties';
+import { TileType, TILE_PROPERTIES } from '../config/tileProperties';
+import { computeMinLevelSize } from './LevelScaler';
+import {
+  WIZARD_SPAWN_CHANCE,
+  WIZARD_SPAWN_MIN_DIST_KNIGHT,
+  WIZARD_SPAWN_MIN_DIST_DRAGON,
+} from '../config/constants';
+import { isReachable } from '../systems/Pathfinding';
+import { distance } from '../core/MathUtils';
 
 export function generateLevel(levelNum: number): LevelDefinition {
-  const width = Math.min(20 + levelNum * 5, 50);
-  const height = Math.min(15 + levelNum * 4, 40);
+  const minSize = computeMinLevelSize();
+  const width = Math.max(Math.min(20 + levelNum * 5, 50), minSize.width);
+  const height = Math.max(Math.min(15 + levelNum * 4, 40), minSize.height);
 
   const tiles: TileType[][] = [];
 
@@ -118,6 +127,15 @@ export function generateLevel(levelNum: number): LevelDefinition {
     }
   }
 
+  // Place torches on walls adjacent to floor tiles
+  const torchPositions = generateTorchPositions(tiles, width, height, rooms, rng);
+
+  // Wizard spawn (65% chance, prefer shadow tiles far from knight/dragon)
+  let wizardSpawn: { x: number; y: number } | undefined;
+  if (rng() < WIZARD_SPAWN_CHANCE) {
+    wizardSpawn = findWizardSpawn(tiles, knightSpawn, dragonSpawn, width, height, rng);
+  }
+
   return {
     level: levelNum,
     name: `Castle Depths - Floor ${levelNum}`,
@@ -129,7 +147,11 @@ export function generateLevel(levelNum: number): LevelDefinition {
     dragonWaypoints,
     treasurePositions,
     dragonHP: 50 + levelNum * 20,
-    dragonSpeedMultiplier: 1.0 + levelNum * 0.15,
+    dragonSpeedMultiplier: 0.7 + levelNum * 0.15,
+    dragonFireDamageMultiplier: Math.min(0.5 + levelNum * 0.2, 2.0),
+    torchPositions,
+    wizardSpawn,
+    dragonStartsPatrolling: levelNum >= 4,
   };
 }
 
@@ -269,8 +291,102 @@ export function generateWaypoints(
 ): { x: number; y: number }[] {
   const waypoints = [start];
   for (let i = 0; i < count - 1; i++) {
-    const pos = findFloorTile(tiles, 2, 2, width - 4, height - 4, rng);
-    waypoints.push(pos);
+    const prev = waypoints[waypoints.length - 1];
+    let added = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const pos = findFloorTile(tiles, 2, 2, width - 4, height - 4, rng);
+      if (isReachable(prev.x, prev.y, pos.x, pos.y, tiles, width, height)) {
+        waypoints.push(pos);
+        added = true;
+        break;
+      }
+    }
+    if (!added) {
+      // If no reachable waypoint found, duplicate previous to keep patrol moving
+      waypoints.push({ ...prev });
+    }
   }
   return waypoints;
+}
+
+function findWizardSpawn(
+  tiles: TileType[][],
+  knightSpawn: { x: number; y: number },
+  dragonSpawn: { x: number; y: number },
+  width: number, height: number,
+  rng: () => number
+): { x: number; y: number } | undefined {
+  // Prefer shadow tiles, fall back to floor tiles
+  const candidates: { x: number; y: number; isShadow: boolean }[] = [];
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (tiles[y][x] !== TileType.FLOOR && tiles[y][x] !== TileType.SHADOW) continue;
+      const distKnight = distance(x, y, knightSpawn.x, knightSpawn.y);
+      const distDragon = distance(x, y, dragonSpawn.x, dragonSpawn.y);
+      if (distKnight >= WIZARD_SPAWN_MIN_DIST_KNIGHT && distDragon >= WIZARD_SPAWN_MIN_DIST_DRAGON) {
+        candidates.push({ x, y, isShadow: tiles[y][x] === TileType.SHADOW });
+      }
+    }
+  }
+
+  if (candidates.length === 0) return undefined;
+
+  // Prefer shadow tiles
+  const shadows = candidates.filter(c => c.isShadow);
+  const pool = shadows.length > 0 ? shadows : candidates;
+
+  const pick = pool[Math.floor(rng() * pool.length)];
+  return { x: pick.x, y: pick.y };
+}
+
+function generateTorchPositions(
+  tiles: TileType[][],
+  width: number, height: number,
+  rooms: { x: number; y: number; w: number; h: number }[],
+  rng: () => number
+): { x: number; y: number; lit: boolean }[] {
+  const torches: { x: number; y: number; lit: boolean }[] = [];
+  const used = new Set<string>();
+
+  // Find wall tiles adjacent to floor tiles (candidates for torches)
+  const candidates: { x: number; y: number }[] = [];
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (tiles[y][x] !== TileType.WALL) continue;
+      // Check if adjacent to a floor tile
+      const neighbors = [
+        [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1],
+      ];
+      const hasFloor = neighbors.some(([nx, ny]) =>
+        nx >= 0 && nx < width && ny >= 0 && ny < height &&
+        TILE_PROPERTIES[tiles[ny][nx]].walkable
+      );
+      if (hasFloor) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+
+  // Place roughly 1 torch per room, pick from candidates
+  const targetCount = Math.max(rooms.length, 3);
+  // Shuffle candidates
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  for (const c of candidates) {
+    if (torches.length >= targetCount) break;
+    const key = `${c.x},${c.y}`;
+    if (used.has(key)) continue;
+
+    // Ensure not too close to another torch
+    const tooClose = torches.some(t => Math.abs(t.x - c.x) + Math.abs(t.y - c.y) < 4);
+    if (tooClose) continue;
+
+    used.add(key);
+    torches.push({ x: c.x, y: c.y, lit: rng() < 0.5 });
+  }
+
+  return torches;
 }

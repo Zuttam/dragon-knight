@@ -14,6 +14,7 @@ export interface ActivePowerUp {
 }
 
 export enum DragonAIState {
+  SLEEP = 'SLEEP',
   PATROL = 'PATROL',
   ALERT = 'ALERT',
   ATTACK = 'ATTACK',
@@ -66,8 +67,15 @@ export interface DragonStateData {
   alertTimer: number;
   searchTimer: number;
   lastKnownPlayerPos: { x: number; y: number } | null;
+  fireDamageMultiplier: number;
   fireBreathing: boolean;
   searchFiring: boolean;
+  hasBeenRevealed: boolean;
+  currentPath: { x: number; y: number }[] | null;
+  currentPathIndex: number;
+  waypointStuckTimer: number;
+  lastPathTarget: { x: number; y: number } | null;
+  lastPathComputeTime: number;
 }
 
 export function createKnightState(tileX: number, tileY: number, maxHP: number, baseAttack: number): KnightState {
@@ -103,7 +111,9 @@ export function createDragonState(
   waypoints: { x: number; y: number }[],
   speedMultiplier: number,
   fovRange: number,
-  fovAngle: number
+  fovAngle: number,
+  fireDamageMultiplier: number = 1.0,
+  initialState: DragonAIState = DragonAIState.SLEEP
 ): DragonStateData {
   return {
     x: tileX + 0.5,
@@ -118,14 +128,50 @@ export function createDragonState(
     facingAngle: 0,
     fovRange,
     fovAngle,
-    aiState: DragonAIState.PATROL,
+    aiState: initialState,
     waypoints,
     currentWaypointIndex: 0,
     alertTimer: 0,
     searchTimer: 0,
     lastKnownPlayerPos: null,
+    fireDamageMultiplier,
     fireBreathing: false,
     searchFiring: false,
+    hasBeenRevealed: false,
+    currentPath: null,
+    currentPathIndex: 0,
+    waypointStuckTimer: 0,
+    lastPathTarget: null,
+    lastPathComputeTime: 0,
+  };
+}
+
+// ── Wizard ──────────────────────────────────────────────────
+
+export enum WizardDialogStatus {
+  HIDDEN = 'HIDDEN',
+  REVEALED = 'REVEALED',
+  AVAILABLE = 'AVAILABLE',
+  DRAGON_NEARBY = 'DRAGON_NEARBY',
+  CHATTING = 'CHATTING',
+  COMPLETED = 'COMPLETED',
+}
+
+export interface WizardState {
+  x: number;
+  y: number;
+  dialogStatus: WizardDialogStatus;
+  riddleAnswered: boolean;
+  riddleDifficulty: number; // based on level
+}
+
+export function createWizardState(tileX: number, tileY: number, level: number): WizardState {
+  return {
+    x: tileX + 0.5,
+    y: tileY + 0.5,
+    dialogStatus: WizardDialogStatus.HIDDEN,
+    riddleAnswered: false,
+    riddleDifficulty: Math.min(level, 10),
   };
 }
 

@@ -3,7 +3,9 @@ import { LoginState } from './states/LoginState';
 import { PlayState } from './states/PlayState';
 import { GameOverState } from './states/GameOverState';
 import { LevelCompleteState } from './states/LevelCompleteState';
-import { SaveSystem } from './save/SaveSystem';
+import { SaveSystem, UserSettings } from './save/SaveSystem';
+import { setLocale } from './i18n';
+import { musicStore } from './audio/MusicStore';
 
 const container = document.getElementById('game-container')!;
 const game = new Game(container);
@@ -11,26 +13,32 @@ const saveSystem = new SaveSystem();
 
 // ── State transition helpers ──────────────────────────────
 function goToLogin(): void {
-  const loginState = new LoginState((playerName, level, save) => {
-    goToPlay(playerName, level, save);
+  const loginState = new LoginState((settings, level, save) => {
+    goToPlay(settings, level, save);
   });
   game.switchState(loginState);
 }
 
-function goToPlay(playerName: string, level: number, save?: any): void {
+function goToPlay(settings: UserSettings, level: number, save?: any): void {
+  setLocale(settings.language);
+
   const playState = new PlayState(
     // onGameOver
-    (pName, lvl) => {
-      goToGameOver(pName, lvl);
+    (s, lvl) => {
+      goToGameOver(s, lvl);
     },
     // onLevelComplete
-    (pName, lvl, nextLvl) => {
-      goToLevelComplete(pName, lvl, nextLvl);
+    (s, lvl, nextLvl) => {
+      goToLevelComplete(s, lvl, nextLvl);
+    },
+    // onExitDungeon
+    () => {
+      goToLogin();
     }
   );
 
   game.switchState(playState, {
-    playerName,
+    settings,
     level,
     totalTreasures: save?.totalTreasures || 0,
     maxHP: save?.maxHP,
@@ -38,22 +46,42 @@ function goToPlay(playerName: string, level: number, save?: any): void {
   });
 }
 
-function goToGameOver(playerName: string, level: number): void {
+function goToGameOver(settings: UserSettings, level: number): void {
   const gameOverState = new GameOverState(
-    (pName, lvl) => goToPlay(pName, lvl),
+    (s, lvl) => goToPlay(s, lvl),
     () => goToLogin()
   );
-  game.switchState(gameOverState, { playerName, level });
+  game.switchState(gameOverState, { settings, level });
 }
 
-function goToLevelComplete(playerName: string, level: number, nextLevel: number): void {
-  const save = saveSystem.loadGame(playerName);
+function goToLevelComplete(settings: UserSettings, level: number, nextLevel: number): void {
+  const save = saveSystem.loadProgress(settings.playerName);
   const levelCompleteState = new LevelCompleteState(
-    (pName, nextLvl) => goToPlay(pName, nextLvl, save),
+    (s, nextLvl) => goToPlay(s, nextLvl, save),
     () => goToLogin()
   );
-  game.switchState(levelCompleteState, { playerName, level, nextLevel });
+  game.switchState(levelCompleteState, { settings, level, nextLevel });
 }
+
+// ── Migrate global wizard keys into per-profile settings ──
+(() => {
+  const globalProvider = localStorage.getItem('wizard:provider');
+  const globalApiKey = localStorage.getItem('wizard:apiKey');
+  if (!globalProvider && !globalApiKey) return;
+
+  const profiles = saveSystem.listProfiles();
+  for (const p of profiles) {
+    const settings = saveSystem.loadSettings(p.playerName);
+    if (settings && !settings.llmApiKey) {
+      if (globalProvider) settings.llmProvider = globalProvider as any;
+      if (globalApiKey) settings.llmApiKey = globalApiKey;
+      saveSystem.saveSettings(settings);
+    }
+  }
+
+  localStorage.removeItem('wizard:provider');
+  localStorage.removeItem('wizard:apiKey');
+})();
 
 // ── Start ─────────────────────────────────────────────────
-goToLogin();
+musicStore.open().then(() => goToLogin());

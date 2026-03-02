@@ -1,24 +1,31 @@
 import type { GameState } from '../core/GameState';
 import type { Game } from '../core/Game';
 import { GameSessionState, createGameSession } from '../state/GameSessionState';
-import { KnightState, DragonStateData, entityTileX, entityTileY, takeDamage, isAlive } from '../state/EntityState';
+import { KnightState, DragonStateData, DragonAIState, PowerUpType, WizardDialogStatus, createWizardState, entityTileX, entityTileY, takeDamage, isAlive } from '../state/EntityState';
 import { TileType, TILE_PROPERTIES } from '../config/tileProperties';
 import {
   WOOD_WALL_HP, BURNING_WOOD_DURATION, BURNING_WOOD_DAMAGE_PER_SEC,
-  DRAGON_FIRE_RANGE,
+  DRAGON_FIRE_RANGE, DRAGON_ALERT_DURATION,
 } from '../config/constants';
 import { LevelDefinition } from '../levels/LevelDefinition';
 import { level1 } from '../levels/level1';
 import { level2 } from '../levels/level2';
 import { level3 } from '../levels/level3';
 import { generateLevel } from '../levels/LevelGenerator';
+import { padLevelToScreen } from '../levels/LevelScaler';
 import { DetectionSystem } from '../systems/DetectionSystem';
 import { VisibilitySystem } from '../systems/VisibilitySystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { PowerUpSystem } from '../systems/PowerUpSystem';
 import { MovementSystem } from '../systems/MovementSystem';
 import { DragonAI } from '../systems/DragonAI';
-import { SaveSystem } from '../save/SaveSystem';
+import { WizardInteractionSystem } from '../systems/WizardInteractionSystem';
+import { WizardChatSystem } from '../systems/WizardChatSystem';
+import { SaveSystem, UserSettings } from '../save/SaveSystem';
+import { musicStore } from '../audio/MusicStore';
+import { musicManager } from '../audio/MusicManager';
+import { t } from '../i18n';
+import { distance } from '../core/MathUtils';
 
 import { WorldRenderer } from '../rendering/WorldRenderer';
 import { EntityRenderer } from '../rendering/EntityRenderer';
@@ -31,9 +38,11 @@ import { HUD } from '../ui/HUD';
 import { FloatingText } from '../ui/FloatingText';
 import { MobileControls } from '../ui/MobileControls';
 import { PauseOverlay } from '../ui/PauseOverlay';
+import { WizardChatOverlay } from '../ui/WizardChatOverlay';
 
 export class PlayState implements GameState {
   private session!: GameSessionState;
+  private settings!: UserSettings;
   private detectionSystem!: DetectionSystem;
   private visibilitySystem!: VisibilitySystem;
   private combatSystem!: CombatSystem;
@@ -41,6 +50,13 @@ export class PlayState implements GameState {
   private movementSystem!: MovementSystem;
   private dragonAI!: DragonAI;
   private saveSystem!: SaveSystem;
+
+  // Wizard systems
+  private wizardInteraction!: WizardInteractionSystem;
+  private wizardChat!: WizardChatSystem;
+  private wizardChatOverlay!: WizardChatOverlay;
+  private wizardPromptEl: HTMLElement | null = null;
+  private wizardChatOpen: boolean = false;
 
   private worldRenderer!: WorldRenderer;
   private entityRenderer!: EntityRenderer;
@@ -59,27 +75,43 @@ export class PlayState implements GameState {
   private game!: Game;
 
   // Callbacks for state transitions
-  private onGameOver!: (playerName: string, level: number) => void;
-  private onLevelComplete!: (playerName: string, level: number, nextLevel: number) => void;
+  private onGameOver!: (settings: UserSettings, level: number) => void;
+  private onLevelComplete!: (settings: UserSettings, level: number, nextLevel: number) => void;
+  private onExitDungeon!: () => void;
 
   constructor(
-    onGameOver: (playerName: string, level: number) => void,
-    onLevelComplete: (playerName: string, level: number, nextLevel: number) => void
+    onGameOver: (settings: UserSettings, level: number) => void,
+    onLevelComplete: (settings: UserSettings, level: number, nextLevel: number) => void,
+    onExitDungeon: () => void
   ) {
     this.onGameOver = onGameOver;
     this.onLevelComplete = onLevelComplete;
+    this.onExitDungeon = onExitDungeon;
   }
 
-  enter(game: Game, data: { playerName: string; level: number; totalTreasures?: number; maxHP?: number; baseAttack?: number }): void {
+  enter(game: Game, data: { settings: UserSettings; level: number; totalTreasures?: number; maxHP?: number; baseAttack?: number }): void {
     this.game = game;
+    this.settings = data.settings;
     const levelDef = this.getLevelDefinition(data.level);
 
+    // Create wizard state if level has a wizard spawn and wizard is enabled
+    const wizardSpawnEnabled = this.settings.wizardEnabled !== false;
+    const wizardState = levelDef.wizardSpawn && wizardSpawnEnabled
+      ? createWizardState(levelDef.wizardSpawn.x, levelDef.wizardSpawn.y, levelDef.level)
+      : null;
+
     this.session = createGameSession(
-      levelDef, data.playerName,
+      levelDef, data.settings.playerName,
       data.totalTreasures || 0,
       data.maxHP,
-      data.baseAttack
+      data.baseAttack,
+      data.settings.language,
+      data.settings.ageRange,
+      wizardState
     );
+
+    // Translate level name
+    this.session.levelName = this.getTranslatedLevelName(data.level, levelDef);
 
     // Systems
     this.detectionSystem = new DetectionSystem(this.session.world.tiles);
@@ -92,6 +124,14 @@ export class PlayState implements GameState {
     this.dragonAI = new DragonAI();
     this.saveSystem = new SaveSystem();
 
+    // Wizard systems
+    this.wizardInteraction = new WizardInteractionSystem();
+    this.wizardChat = new WizardChatSystem();
+    this.wizardChat.loadFromSettings(this.settings);
+
+    // Match clear color to wall tiles so any sub-tile gap at screen edges is invisible
+    game.renderer.setClearColor(0x111118);
+
     // Renderers
     this.lighting = new LightingSetup(game.scene);
     this.worldRenderer = new WorldRenderer(game.scene);
@@ -101,6 +141,11 @@ export class PlayState implements GameState {
     this.entityRenderer.buildKnight();
     this.entityRenderer.buildDragon();
     this.entityRenderer.buildTreasures(this.session.world.treasures);
+
+    // Build wizard if present
+    if (this.session.wizard) {
+      this.entityRenderer.buildWizard();
+    }
 
     this.effectRenderer = new EffectRenderer(game.scene);
     this.fogRenderer = new FogRenderer(game.scene);
@@ -120,9 +165,6 @@ export class PlayState implements GameState {
       }
     }
     this.lighting.addLavaLights(lavaTiles);
-
-    // Ground plane (large floor under everything)
-    // Not needed — InstancedMesh floors cover it
 
     // UI
     this.hud = new HUD();
@@ -144,14 +186,94 @@ export class PlayState implements GameState {
     this.pauseOverlay = new PauseOverlay(
       () => { this.session.paused = false; this.pauseOverlay.hide(); },
       () => {
-        const save = this.saveSystem.loadGame(this.session.playerName);
-        if (save) this.saveSystem.downloadSave(save);
+        this.saveSystem.downloadFullExport(this.settings);
+      },
+      () => { this.onExitDungeon(); },
+      (enabled, volume) => {
+        this.settings.musicEnabled = enabled;
+        this.settings.musicVolume = volume;
+        this.saveSystem.saveSettings(this.settings);
+      },
+      async (trackIndex) => {
+        if (trackIndex >= 0) {
+          const blob = await musicStore.getTrackBlob(this.settings.playerName, trackIndex);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            musicManager.setTrack(trackIndex, url);
+          }
+        } else {
+          musicManager.setTrack(-1, null);
+        }
+        this.settings.activeTrack = trackIndex;
+        this.saveSystem.saveSettings(this.settings);
+      }
+    );
+    this.pauseOverlay.setTrackInfo(this.settings.customTracks || []);
+
+    // Wizard chat overlay
+    this.wizardChatOverlay = new WizardChatOverlay(
+      // onSend
+      (message) => {
+        this.wizardChat.sendMessage(message).then(() => {
+          this.wizardChatOverlay.updateMessages(this.wizardChat.state);
+
+          // Check if riddle was answered correctly
+          if (this.wizardChat.state.riddleCorrect && this.session.wizard) {
+            this.session.wizard.riddleAnswered = true;
+            this.session.wizard.dialogStatus = WizardDialogStatus.COMPLETED;
+
+            // Apply wizard reward
+            const rewardType = this.powerUpSystem.applyWizardReward(
+              this.session.knight, this.session.time, this.session.level
+            );
+            const labels: Partial<Record<PowerUpType, string>> = {
+              [PowerUpType.HEAL]: t('floating.healWizard'), [PowerUpType.ATTACK_BOOST]: t('floating.wizardAtk'), [PowerUpType.SPEED_BOOST]: t('floating.wizardSpeed'),
+              [PowerUpType.SHADOW_CLOAK]: t('floating.wizardCloak'), [PowerUpType.FIRE_RESIST]: t('floating.wizardFireShield'), [PowerUpType.HP_BOOST]: t('floating.wizardMaxHP'),
+            };
+            this.floatingText.show(
+              this.session.knight.x, 1.0, this.session.knight.y,
+              labels[rewardType] || t('floating.wizardGift'), '#cc88ff'
+            );
+
+            // Auto-close after 2 seconds
+            setTimeout(() => {
+              this.closeWizardChat();
+            }, 2000);
+          }
+        });
+        this.wizardChatOverlay.updateMessages(this.wizardChat.state);
+      },
+      // onClose
+      () => {
+        this.closeWizardChat();
+      },
+      // onApiKeySubmit
+      (provider, apiKey, model) => {
+        this.wizardChat.setProvider(provider, apiKey, model);
+        // Persist to profile settings
+        this.settings.llmProvider = provider;
+        this.settings.llmApiKey = apiKey;
+        this.settings.llmModel = model;
+        this.saveSystem.saveSettings(this.settings);
+        this.wizardChatOverlay.hide();
+        this.openWizardChat();
       }
     );
 
-    // Escape to pause
+    // Wizard proximity prompt
+    this.wizardPromptEl = document.createElement('div');
+    this.wizardPromptEl.className = 'wizard-prompt';
+    this.wizardPromptEl.style.display = 'none';
+    document.body.appendChild(this.wizardPromptEl);
+
+    // Escape handler
     this.handlePauseKey = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
+        // Close wizard chat first if open
+        if (this.wizardChatOpen) {
+          this.closeWizardChat();
+          return;
+        }
         this.session.paused = !this.session.paused;
         if (this.session.paused) this.pauseOverlay.show();
         else this.pauseOverlay.hide();
@@ -163,15 +285,25 @@ export class PlayState implements GameState {
   private handlePauseKey: ((e: KeyboardEvent) => void) | null = null;
 
   exit(game: Game): void {
+    game.renderer.setClearColor(0x1a1a2e);
     this.worldRenderer.dispose();
     this.entityRenderer.dispose();
     this.effectRenderer.dispose();
     this.fogRenderer.dispose();
+    this.cameraController.dispose();
     this.lighting.dispose();
     this.hud.hide();
     this.floatingText.dispose();
     this.mobileControls.dispose();
     this.pauseOverlay.hide();
+
+    // Wizard cleanup
+    this.wizardChatOverlay.hide();
+    this.wizardChat.cancelPending();
+    if (this.wizardPromptEl) {
+      this.wizardPromptEl.remove();
+      this.wizardPromptEl = null;
+    }
 
     if (this.handlePauseKey) {
       window.removeEventListener('keydown', this.handlePauseKey);
@@ -189,12 +321,12 @@ export class PlayState implements GameState {
 
     // Check end conditions
     if (!isAlive(knight)) {
-      this.onGameOver(this.session.playerName, this.session.level);
+      this.onGameOver(this.settings, this.session.level);
       return;
     }
     if (!isAlive(dragon)) {
       this.saveLevelComplete();
-      this.onLevelComplete(this.session.playerName, this.session.level, this.session.level + 1);
+      this.onLevelComplete(this.settings, this.session.level, this.session.level + 1);
       return;
     }
 
@@ -219,18 +351,31 @@ export class PlayState implements GameState {
       dragon.x, dragon.y, knight.x, knight.y, knight.isMoving
     );
     const detected = playerDetected || noiseDetected;
+    if (detected && !dragon.hasBeenRevealed) {
+      dragon.hasBeenRevealed = true;
+    }
 
     // ── Dragon AI ────────────────────────────────────────
     this.dragonAI.update(
       dragon, time, delta, detected,
-      detected ? { x: entityTileX(knight), y: entityTileY(knight) } : undefined
+      detected ? { x: entityTileX(knight), y: entityTileY(knight) } : undefined,
+      world.tiles, world.width, world.height
     );
     this.dragonAI.handleSearchFire(dragon, world.tiles);
+
+    // ── Wizard interaction ────────────────────────────────
+    this.updateWizardInteraction(game, knight, dragon);
 
     // ── Combat ───────────────────────────────────────────
     const dmgDealt = this.combatSystem.knightAttack(knight, dragon);
     if (dmgDealt > 0) {
       this.floatingText.show(dragon.x, 1.0, dragon.y, `-${Math.round(dmgDealt)}`, '#ff4444');
+      // Wake dragon if attacked while sleeping
+      if (dragon.aiState === DragonAIState.SLEEP) {
+        dragon.aiState = DragonAIState.ALERT;
+        dragon.alertTimer = time + DRAGON_ALERT_DURATION;
+        dragon.lastKnownPlayerPos = { x: entityTileX(knight), y: entityTileY(knight) };
+      }
     }
 
     // Knight attacks wood walls
@@ -267,24 +412,44 @@ export class PlayState implements GameState {
     const collected = this.powerUpSystem.checkCollection(knight, world.treasures, time);
     if (collected) {
       this.session.totalTreasures++;
-      const labels: Record<string, string> = {
-        heal: '+HP', attack_boost: 'ATK UP!', speed_boost: 'SPEED UP!',
-        shadow_cloak: 'CLOAKED!', fire_resist: 'FIRE RESIST!', hp_boost: 'MAX HP UP!',
+      const labels: Partial<Record<PowerUpType, string>> = {
+        [PowerUpType.HEAL]: t('floating.heal'), [PowerUpType.ATTACK_BOOST]: t('floating.atkUp'), [PowerUpType.SPEED_BOOST]: t('floating.speedUp'),
+        [PowerUpType.SHADOW_CLOAK]: t('floating.cloaked'), [PowerUpType.FIRE_RESIST]: t('floating.fireResist'), [PowerUpType.HP_BOOST]: t('floating.maxHpUp'),
       };
       this.floatingText.show(knight.x, 1.0, knight.y, labels[collected.type] || collected.type, '#ffdd44');
     }
 
+    // ── Torch interaction ──────────────────────────────────
+    const nearTorch = this.findNearestTorch(knight, world);
+    this.handleTorchInteraction(game, knight, world, nearTorch);
+
     // ── Visibility (fog of war) ──────────────────────────
     this.visibilitySystem.compute(kTileX, kTileY);
+
+    // ── Dragon wake-up ─────────────────────────────────
+    if (dragon.aiState === DragonAIState.SLEEP) {
+      const dtx = entityTileX(dragon);
+      const dty = entityTileY(dragon);
+      if (this.visibilitySystem.visible[dty]?.[dtx]) {
+        dragon.aiState = DragonAIState.PATROL;
+      }
+    }
 
     // ── Rendering ────────────────────────────────────────
     this.worldRenderer.update(delta);
     this.entityRenderer.updateKnight(knight, delta);
     this.entityRenderer.updateDragon(dragon, knight, delta, this.visibilitySystem);
     this.entityRenderer.updateTreasures(world.treasures, delta);
+
+    // Update wizard rendering
+    if (this.session.wizard) {
+      this.entityRenderer.updateWizard(this.session.wizard, knight, delta, this.visibilitySystem);
+    }
+
     this.effectRenderer.updateFireBreath(dragon, delta);
     this.effectRenderer.updateFOVCone(dragon, this.detectionSystem, this.visibilitySystem);
     this.effectRenderer.updateBurningTiles(world.burningTiles, time, delta);
+    this.effectRenderer.updateCrackParticles(delta);
     this.fogRenderer.update(this.visibilitySystem);
 
     // Camera
@@ -293,11 +458,97 @@ export class PlayState implements GameState {
     this.lighting.updateDirectionalTarget(knight.x, knight.y);
 
     // HUD
-    this.hud.update(knight, dragon);
+    const wizardBusy = this.session.wizard?.dialogStatus === WizardDialogStatus.AVAILABLE
+      || this.session.wizard?.dialogStatus === WizardDialogStatus.DRAGON_NEARBY;
+    this.hud.update(knight, dragon, nearTorch !== null && !wizardBusy);
 
     // Floating text
     this.floatingText.update(delta);
   }
+
+  // ── Wizard ──────────────────────────────────────────────
+
+  private updateWizardInteraction(game: Game, knight: KnightState, dragon: DragonStateData): void {
+    const wizard = this.session.wizard;
+    if (!wizard || wizard.riddleAnswered) {
+      if (this.wizardPromptEl) this.wizardPromptEl.style.display = 'none';
+      return;
+    }
+
+    // Update wizard status
+    this.wizardInteraction.update(wizard, knight, dragon);
+
+    // During active chat, check if dragon approached
+    if (this.wizardChatOpen) {
+      if (!this.wizardInteraction.isChatSafe(wizard, dragon)) {
+        // Force close chat
+        wizard.dialogStatus = WizardDialogStatus.DRAGON_NEARBY;
+        this.closeWizardChat();
+        this.floatingText.show(wizard.x, 1.5, wizard.y, t('floating.dangerApproaches'), '#ff4444');
+      }
+      return;
+    }
+
+    // Show/hide proximity prompt
+    if (this.wizardPromptEl) {
+      switch (wizard.dialogStatus) {
+        case WizardDialogStatus.AVAILABLE:
+          this.wizardPromptEl.textContent = t('wizard.speakPrompt');
+          this.wizardPromptEl.style.display = 'block';
+          break;
+        case WizardDialogStatus.DRAGON_NEARBY:
+          this.wizardPromptEl.textContent = t('wizard.dangerNearby');
+          this.wizardPromptEl.style.display = 'block';
+          break;
+        default:
+          this.wizardPromptEl.style.display = 'none';
+      }
+    }
+
+    // E key to interact when available
+    if (game.input.interact && wizard.dialogStatus === WizardDialogStatus.AVAILABLE) {
+      this.openWizardChat();
+    }
+  }
+
+  private openWizardChat(): void {
+    const wizard = this.session.wizard;
+    if (!wizard) return;
+
+    this.wizardChatOpen = true;
+    wizard.dialogStatus = WizardDialogStatus.CHATTING;
+    this.session.paused = true;
+
+    if (this.wizardPromptEl) this.wizardPromptEl.style.display = 'none';
+
+    const needsApiKey = !this.wizardChat.hasApiKey();
+    this.wizardChatOverlay.show(needsApiKey);
+
+    if (!needsApiKey) {
+      this.wizardChat.startChat(
+        this.session.level,
+        this.session.language,
+        this.session.ageRange
+      ).then(() => {
+        this.wizardChatOverlay.updateMessages(this.wizardChat.state);
+      });
+      this.wizardChatOverlay.updateMessages(this.wizardChat.state);
+    }
+  }
+
+  private closeWizardChat(): void {
+    this.wizardChatOpen = false;
+    this.session.paused = false;
+    this.wizardChat.cancelPending();
+    this.wizardChatOverlay.hide();
+
+    const wizard = this.session.wizard;
+    if (wizard && !wizard.riddleAnswered && wizard.dialogStatus === WizardDialogStatus.CHATTING) {
+      wizard.dialogStatus = WizardDialogStatus.AVAILABLE;
+    }
+  }
+
+  // ── Knight Input ────────────────────────────────────────
 
   private updateKnightInput(game: Game, knight: KnightState, time: number): void {
     let vx = 0;
@@ -363,6 +614,14 @@ export class PlayState implements GameState {
       const hp = world.woodWallHP.get(key)! - 1;
       world.woodWallHP.set(key, hp);
 
+      // Visual damage feedback
+      this.worldRenderer.tintWoodWallInstance(tx, ty, hp);
+      this.effectRenderer.updateWoodWallDamage(tx, ty, hp);
+      if (hp === 1) {
+        this.worldRenderer.shrinkWoodWallInstance(tx, ty, 0.92);
+      }
+      this.floatingText.show(tx + 0.5, 1.0, ty + 0.5, t('floating.crack'), '#ccaa66');
+
       if (hp <= 0) {
         this.destroyWoodWall(tx, ty, world);
       }
@@ -370,6 +629,7 @@ export class PlayState implements GameState {
   }
 
   private destroyWoodWall(tx: number, ty: number, world: WorldState): void {
+    this.effectRenderer.updateWoodWallDamage(tx, ty, 0);
     world.tiles[ty][tx] = TileType.FLOOR;
     world.woodWallHP.delete(`${tx},${ty}`);
     this.worldRenderer.removeWallInstance(TileType.WOOD_WALL, tx, ty);
@@ -456,13 +716,62 @@ export class PlayState implements GameState {
     this.saveSystem.saveGame(save);
   }
 
-  private getLevelDefinition(level: number): LevelDefinition {
-    switch (level) {
-      case 1: return level1;
-      case 2: return level2;
-      case 3: return level3;
-      default: return generateLevel(level);
+  private findNearestTorch(knight: KnightState, world: WorldState): { index: number; torch: import('../state/WorldState').TorchState } | null {
+    let nearest: { index: number; torch: import('../state/WorldState').TorchState } | null = null;
+    let minDist = 1.5;
+
+    for (let i = 0; i < world.torches.length; i++) {
+      const t = world.torches[i];
+      const dist = distance(knight.x, knight.y, t.x + 0.5, t.y + 0.5);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = { index: i, torch: t };
+      }
     }
+
+    return nearest;
+  }
+
+  private handleTorchInteraction(
+    game: Game, knight: KnightState, world: WorldState,
+    nearest: { index: number; torch: import('../state/WorldState').TorchState } | null
+  ): void {
+    if (!game.input.interact) return;
+
+    // Don't toggle torch if wizard interaction took priority
+    if (this.session.wizard && this.session.wizard.dialogStatus === WizardDialogStatus.AVAILABLE) return;
+
+    if (!nearest) return;
+
+    nearest.torch.lit = !nearest.torch.lit;
+    this.worldRenderer.updateTorchStates(world.torches);
+
+    const label = nearest.torch.lit ? t('floating.lit') : t('floating.extinguished');
+    const color = nearest.torch.lit ? '#ffaa44' : '#8888aa';
+    this.floatingText.show(
+      nearest.torch.x + 0.5, 1.0, nearest.torch.y + 0.5,
+      label, color
+    );
+  }
+
+  private getTranslatedLevelName(level: number, def: LevelDefinition): string {
+    switch (level) {
+      case 1: return t('level.entranceHall');
+      case 2: return t('level.grandCorridor');
+      case 3: return t('level.burningKeep');
+      default: return t('level.castleDepths', { level });
+    }
+  }
+
+  private getLevelDefinition(level: number): LevelDefinition {
+    let def: LevelDefinition;
+    switch (level) {
+      case 1: def = level1; break;
+      case 2: def = level2; break;
+      case 3: def = level3; break;
+      default: def = generateLevel(level); break;
+    }
+    return padLevelToScreen(def);
   }
 }
 

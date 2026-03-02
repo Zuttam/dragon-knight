@@ -9,12 +9,12 @@ export class LightingSetup {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // Ambient — dim blue dungeon ambiance
-    this.ambient = new THREE.AmbientLight(0x404060, 0.4);
+    // Ambient — blue dungeon ambiance
+    this.ambient = new THREE.AmbientLight(0x303050, 0.55);
     scene.add(this.ambient);
 
-    // Directional — above-left, casting shadows
-    this.directional = new THREE.DirectionalLight(0xffeedd, 0.6);
+    // Directional — fill light
+    this.directional = new THREE.DirectionalLight(0xffeedd, 0.5);
     this.directional.position.set(-5, 15, -5);
     this.directional.castShadow = true;
     this.directional.shadow.mapSize.width = 1024;
