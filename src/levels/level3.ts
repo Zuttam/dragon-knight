@@ -51,8 +51,8 @@ export const level3: LevelDefinition = {
     { x: 23, y: 16 },
     { x: 27, y: 12 },
   ],
-  dragonHP: 90,
-  dragonSpeedMultiplier: 1.1,
+  dragonHP: 140,
+  dragonSpeedMultiplier: 1.15,
   dragonFireDamageMultiplier: 1.0,
   torchPositions: [
     { x: 9, y: 1, lit: true },

@@ -1,7 +1,7 @@
 // ── Login ──────────────────────────────────────────────
 // login.title, login.subtitle, login.newKnight, login.importSave,
 // login.namePlaceholder, login.age, login.enableMusic, login.musicVolume,
-// login.enableWizard,
+// login.apiKeyRequired,
 // login.anthropic, login.openai, login.apiKey, login.show, login.hide,
 // login.beginQuest, login.continueQuest, login.back, login.deleteConfirm,
 // login.level, login.justNow, login.minutesAgo, login.hoursAgo,
@@ -44,6 +44,14 @@
 // ── Level names ────────────────────────────────────────
 // level.entranceHall, level.grandCorridor, level.burningKeep,
 // level.castleDepths
+//
+// ── Rewards ─────────────────────────────────────────────
+// reward.chooseTitle, reward.heal.label, reward.heal.desc,
+// reward.attack_boost.label, reward.attack_boost.desc,
+// reward.speed_boost.label, reward.speed_boost.desc,
+// reward.shadow_cloak.label, reward.shadow_cloak.desc,
+// reward.fire_resist.label, reward.fire_resist.desc,
+// reward.hp_boost.label, reward.hp_boost.desc
 
 export type TranslationKey =
   // Login
@@ -53,7 +61,6 @@ export type TranslationKey =
   | 'login.importSave'
   | 'login.namePlaceholder'
   | 'login.age'
-  | 'login.advancedSettings'
   | 'login.enableMusic'
   | 'login.musicVolume'
   | 'login.customTracks'
@@ -63,7 +70,7 @@ export type TranslationKey =
   | 'login.fileTooLarge'
   | 'login.invalidFormat'
   | 'login.exportProfile'
-  | 'login.enableWizard'
+  | 'login.apiKeyRequired'
   | 'login.anthropic'
   | 'login.openai'
   | 'login.apiKey'
@@ -152,6 +159,20 @@ export type TranslationKey =
   | 'level.entranceHall'
   | 'level.grandCorridor'
   | 'level.burningKeep'
-  | 'level.castleDepths';
+  | 'level.castleDepths'
+  // Rewards
+  | 'reward.chooseTitle'
+  | 'reward.heal.label'
+  | 'reward.heal.desc'
+  | 'reward.attack_boost.label'
+  | 'reward.attack_boost.desc'
+  | 'reward.speed_boost.label'
+  | 'reward.speed_boost.desc'
+  | 'reward.shadow_cloak.label'
+  | 'reward.shadow_cloak.desc'
+  | 'reward.fire_resist.label'
+  | 'reward.fire_resist.desc'
+  | 'reward.hp_boost.label'
+  | 'reward.hp_boost.desc';
 
 export type TranslationMap = Record<TranslationKey, string>;

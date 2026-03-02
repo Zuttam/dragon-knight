@@ -437,49 +437,6 @@ body {
   margin-top: 8px;
 }
 
-/* ── Advanced Settings (Collapsible) ──────────────────── */
-.advanced-settings-section {
-  margin: 16px 0;
-  background: rgba(15, 15, 35, 0.6);
-  border: 1px solid #442266;
-  border-radius: 8px;
-}
-
-.advanced-settings-toggle {
-  padding: 12px 14px;
-  color: #8866aa;
-  font-size: 13px;
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  user-select: none;
-  transition: color 0.2s;
-}
-
-.advanced-settings-toggle::-webkit-details-marker {
-  display: none;
-}
-
-.advanced-settings-toggle::before {
-  content: '\25B6';
-  font-size: 10px;
-  transition: transform 0.2s;
-}
-
-.advanced-settings-section[open] > .advanced-settings-toggle::before {
-  transform: rotate(90deg);
-}
-
-.advanced-settings-toggle:hover {
-  color: #cc88ff;
-}
-
-.advanced-settings-content {
-  padding: 0 14px 14px;
-}
-
 .toggle-row {
   display: flex;
   align-items: center;
@@ -497,7 +454,11 @@ body {
 }
 
 .api-key-row {
-  margin-top: 12px;
+  margin: 16px 0;
+  padding: 12px 14px;
+  background: rgba(15, 15, 35, 0.6);
+  border: 1px solid #442266;
+  border-radius: 8px;
 }
 
 .api-key-input-row {
@@ -741,6 +702,79 @@ body {
   color: #aaaacc;
   font-size: 14px;
   margin-bottom: 24px;
+}
+
+/* ── Reward Cards ─────────────────────────────────────── */
+.reward-choose-title {
+  color: #cc88ff;
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 14px;
+  text-shadow: 0 0 10px rgba(153, 68, 204, 0.4);
+}
+
+.reward-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  justify-content: center;
+}
+
+.reward-card {
+  flex: 1;
+  max-width: 140px;
+  background: rgba(15, 15, 35, 0.8);
+  border: 2px solid #442266;
+  border-radius: 10px;
+  padding: 14px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  text-align: center;
+}
+
+.reward-card:hover {
+  border-color: #9944cc;
+  transform: translateY(-2px);
+}
+
+.reward-card.selected {
+  border-color: #ffdd44;
+  box-shadow: 0 0 16px rgba(255, 221, 68, 0.3), inset 0 0 12px rgba(255, 221, 68, 0.05);
+  transform: translateY(-4px);
+}
+
+.reward-card-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.reward-card-name {
+  color: #e0e0e0;
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.reward-card-desc {
+  color: #8888aa;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+@media (max-width: 480px) {
+  .reward-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .reward-card {
+    max-width: 200px;
+    width: 100%;
+  }
+
+  .overlay-box.victory {
+    max-width: 340px;
+  }
 }
 
 /* ── Mobile Controls ───────────────────────────────────── */

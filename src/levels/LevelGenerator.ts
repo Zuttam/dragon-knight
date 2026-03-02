@@ -146,12 +146,12 @@ export function generateLevel(levelNum: number): LevelDefinition {
     dragonSpawn,
     dragonWaypoints,
     treasurePositions,
-    dragonHP: 50 + levelNum * 20,
-    dragonSpeedMultiplier: 0.7 + levelNum * 0.15,
+    dragonHP: 80 + levelNum * 25,
+    dragonSpeedMultiplier: 0.75 + levelNum * 0.15,
     dragonFireDamageMultiplier: Math.min(0.5 + levelNum * 0.2, 2.0),
     torchPositions,
     wizardSpawn,
-    dragonStartsPatrolling: levelNum >= 4,
+    dragonStartsPatrolling: false,
   };
 }
 

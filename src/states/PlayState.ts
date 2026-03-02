@@ -1,7 +1,8 @@
 import type { GameState } from '../core/GameState';
 import type { Game } from '../core/Game';
 import { GameSessionState, createGameSession } from '../state/GameSessionState';
-import { KnightState, DragonStateData, DragonAIState, PowerUpType, WizardDialogStatus, createWizardState, entityTileX, entityTileY, takeDamage, isAlive } from '../state/EntityState';
+import { KnightState, DragonStateData, DragonAIState, PowerUpType, WizardDialogStatus, createWizardState, entityTileX, entityTileY, takeDamage, isAlive, heal } from '../state/EntityState';
+import type { RewardItem } from '../rewards/RewardItem';
 import { TileType, TILE_PROPERTIES } from '../config/tileProperties';
 import {
   WOOD_WALL_HP, BURNING_WOOD_DURATION, BURNING_WOOD_DAMAGE_PER_SEC,
@@ -22,7 +23,6 @@ import { DragonAI } from '../systems/DragonAI';
 import { WizardInteractionSystem } from '../systems/WizardInteractionSystem';
 import { WizardChatSystem } from '../systems/WizardChatSystem';
 import { SaveSystem, UserSettings } from '../save/SaveSystem';
-import { musicStore } from '../audio/MusicStore';
 import { musicManager } from '../audio/MusicManager';
 import { t } from '../i18n';
 import { distance } from '../core/MathUtils';
@@ -72,6 +72,7 @@ export class PlayState implements GameState {
 
   private damageFlashTimer: number = 0;
   private attackEndTime: number = 0;
+  private rewardHPBonus: number = 0;
   private game!: Game;
 
   // Callbacks for state transitions
@@ -89,14 +90,13 @@ export class PlayState implements GameState {
     this.onExitDungeon = onExitDungeon;
   }
 
-  enter(game: Game, data: { settings: UserSettings; level: number; totalTreasures?: number; maxHP?: number; baseAttack?: number }): void {
+  enter(game: Game, data: { settings: UserSettings; level: number; totalTreasures?: number; maxHP?: number; baseAttack?: number; reward?: RewardItem }): void {
     this.game = game;
     this.settings = data.settings;
     const levelDef = this.getLevelDefinition(data.level);
 
-    // Create wizard state if level has a wizard spawn and wizard is enabled
-    const wizardSpawnEnabled = this.settings.wizardEnabled !== false;
-    const wizardState = levelDef.wizardSpawn && wizardSpawnEnabled
+    // Create wizard state if level has a wizard spawn
+    const wizardState = levelDef.wizardSpawn
       ? createWizardState(levelDef.wizardSpawn.x, levelDef.wizardSpawn.y, levelDef.level)
       : null;
 
@@ -109,6 +109,12 @@ export class PlayState implements GameState {
       data.settings.ageRange,
       wizardState
     );
+
+    // Apply level reward if present
+    this.rewardHPBonus = 0;
+    if (data.reward) {
+      this.applyReward(data.reward, this.session.knight);
+    }
 
     // Translate level name
     this.session.levelName = this.getTranslatedLevelName(data.level, levelDef);
@@ -194,16 +200,8 @@ export class PlayState implements GameState {
         this.settings.musicVolume = volume;
         this.saveSystem.saveSettings(this.settings);
       },
-      async (trackIndex) => {
-        if (trackIndex >= 0) {
-          const blob = await musicStore.getTrackBlob(this.settings.playerName, trackIndex);
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            musicManager.setTrack(trackIndex, url);
-          }
-        } else {
-          musicManager.setTrack(-1, null);
-        }
+      (trackIndex) => {
+        musicManager.jumpTo(trackIndex);
         this.settings.activeTrack = trackIndex;
         this.saveSystem.saveSettings(this.settings);
       }
@@ -696,6 +694,47 @@ export class PlayState implements GameState {
     }
   }
 
+  private applyReward(reward: RewardItem, knight: KnightState): void {
+    switch (reward.type) {
+      case PowerUpType.HEAL:
+        heal(knight, reward.value);
+        break;
+      case PowerUpType.ATTACK_BOOST:
+        knight.activePowerUps.push({
+          type: PowerUpType.ATTACK_BOOST,
+          expiresAt: 0,
+          multiplier: reward.value,
+        });
+        break;
+      case PowerUpType.SPEED_BOOST:
+        knight.activePowerUps.push({
+          type: PowerUpType.SPEED_BOOST,
+          expiresAt: 0,
+          multiplier: reward.value,
+        });
+        break;
+      case PowerUpType.SHADOW_CLOAK:
+        knight.activePowerUps.push({
+          type: PowerUpType.SHADOW_CLOAK,
+          expiresAt: 0,
+          multiplier: 1,
+        });
+        break;
+      case PowerUpType.FIRE_RESIST:
+        knight.activePowerUps.push({
+          type: PowerUpType.FIRE_RESIST,
+          expiresAt: 0,
+          multiplier: reward.value,
+        });
+        break;
+      case PowerUpType.HP_BOOST:
+        knight.maxHP += reward.value;
+        heal(knight, reward.value);
+        this.rewardHPBonus = reward.value;
+        break;
+    }
+  }
+
   private saveLevelComplete(): void {
     const s = this.session;
     const save = this.saveSystem.loadGame(s.playerName) || {
@@ -711,7 +750,7 @@ export class PlayState implements GameState {
     save.currentLevel = s.level + 1;
     save.levelsCompleted = Math.max(save.levelsCompleted, s.level);
     save.totalTreasures = s.totalTreasures;
-    save.maxHP = s.knight.maxHP;
+    save.maxHP = s.knight.maxHP - this.rewardHPBonus;
     save.baseAttackPower = s.knight.baseAttackPower;
     this.saveSystem.saveGame(save);
   }

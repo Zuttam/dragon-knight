@@ -16,7 +16,6 @@ export interface UserSettings {
   llmProvider?: LLMProvider;
   llmApiKey?: string;
   llmModel?: string;
-  wizardEnabled?: boolean;
   musicEnabled?: boolean;
   musicVolume?: number;
   activeTrack?: number;

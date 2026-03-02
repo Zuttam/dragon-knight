@@ -56,17 +56,17 @@ export const WIZARD_REWARD_DURATION = 20000;      // how long boosted power-ups 
 
 // LLM Models
 export const MODELS_BY_PROVIDER: Record<string, { id: string; label: string }[]> = {
+  openai: [
+    { id: 'gpt-5.2', label: 'GPT-5.2' },
+    { id: 'gpt-5', label: 'GPT-5' },
+    { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+  ],
   anthropic: [
     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
     { id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
     { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
   ],
-  openai: [
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'gpt-5.2', label: 'GPT-5.2' },
-    { id: 'gpt-5', label: 'GPT-5' },
-    { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    { id: 'gpt-5-nano', label: 'GPT-5 Nano' },
-  ],
+  
 };

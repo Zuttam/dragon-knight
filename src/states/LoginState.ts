@@ -3,7 +3,7 @@ import type { Game } from '../core/Game';
 import { SaveSystem, UserSettings, SupportedLanguage, LLMProvider, computeAgeRange } from '../save/SaveSystem';
 import { t, setLocale, localizeDOM } from '../i18n';
 import { MODELS_BY_PROVIDER } from '../config/constants';
-import { musicManager } from '../audio/MusicManager';
+import { musicManager, type PlaylistEntry } from '../audio/MusicManager';
 import { musicStore, type CustomTrackMeta } from '../audio/MusicStore';
 
 export class LoginState implements GameState {
@@ -140,7 +140,6 @@ export class LoginState implements GameState {
     const startBtn = document.getElementById('start-btn')!;
     const continueBtn = document.getElementById('continue-btn')!;
     const backBtn = document.getElementById('back-btn')!;
-    const wizardEnabledCb = document.getElementById('wizard-enabled') as HTMLInputElement;
     const wizardApiSettings = document.getElementById('wizard-api-settings')!;
     const wizardApiKeyInput = document.getElementById('wizard-api-key') as HTMLInputElement;
     const apiKeyToggle = document.getElementById('api-key-toggle')!;
@@ -250,19 +249,18 @@ export class LoginState implements GameState {
         musicEnabledCb.checked = settings.musicEnabled !== false;
         musicVolumeSlider.value = String(Math.round((settings.musicVolume ?? 0.5) * 100));
         musicVolumeRow.style.display = musicEnabledCb.checked ? 'flex' : 'none';
-        wizardEnabledCb.checked = settings.wizardEnabled !== false;
         if (settings.llmProvider) {
           for (const r of providerRadios) {
             r.checked = r.value === settings.llmProvider;
           }
         }
         wizardApiKeyInput.value = settings.llmApiKey || '';
-        populateModels(settings.llmProvider || 'anthropic', settings.llmModel);
+        populateModels(settings.llmProvider || 'openai', settings.llmModel);
 
         currentActiveTrack = settings.activeTrack ?? -1;
         currentCustomTracks = settings.customTracks ? [...settings.customTracks] : [];
       } else {
-        populateModels('anthropic');
+        populateModels('openai');
       }
 
       const progress = this.saveSystem.loadProgress(profileName);
@@ -290,32 +288,27 @@ export class LoginState implements GameState {
       musicEnabledCb.checked = true;
       musicVolumeSlider.value = '50';
       musicVolumeRow.style.display = 'flex';
-      wizardEnabledCb.checked = true;
       wizardApiKeyInput.value = '';
       for (const r of providerRadios) {
-        r.checked = r.value === 'anthropic';
+        r.checked = r.value === 'openai';
       }
-      populateModels('anthropic');
+      populateModels('openai');
       startBtn.style.display = 'block';
       continueBtn.style.display = 'none';
 
-      tracksSection.style.display = 'none';
-      trackList.innerHTML = '';
+      tracksSection.style.display = musicEnabledCb.checked ? 'block' : 'none';
+      renderTrackList();
     }
 
     // Show/hide back button
     backBtn.style.display = (hasProfiles || isEditing) ? 'block' : 'none';
 
-    // Wizard toggle controls API key section visibility
-    wizardApiSettings.style.display = wizardEnabledCb.checked ? 'block' : 'none';
+    // Always show wizard API settings
+    wizardApiSettings.style.display = 'block';
 
     // Reset API key visibility
     wizardApiKeyInput.type = 'password';
     apiKeyToggle.textContent = t('login.show');
-
-    const onWizardToggle = () => {
-      wizardApiSettings.style.display = wizardEnabledCb.checked ? 'block' : 'none';
-    };
 
     const onProviderChange = () => {
       const checked = Array.from(providerRadios).find(r => r.checked);
@@ -329,7 +322,8 @@ export class LoginState implements GameState {
 
     const onMusicToggle = () => {
       musicVolumeRow.style.display = musicEnabledCb.checked ? 'flex' : 'none';
-      tracksSection.style.display = (musicEnabledCb.checked && isEditing) ? 'block' : 'none';
+      tracksSection.style.display = musicEnabledCb.checked ? 'block' : 'none';
+      musicManager.setEnabled(musicEnabledCb.checked);
     };
 
     const onMusicVolumeInput = () => {
@@ -410,7 +404,6 @@ export class LoginState implements GameState {
         musicVolume: parseInt(musicVolumeSlider.value, 10) / 100,
         activeTrack: currentActiveTrack,
         customTracks: currentCustomTracks.length > 0 ? currentCustomTracks : undefined,
-        wizardEnabled: wizardEnabledCb.checked,
         llmProvider: provider,
         llmApiKey: apiKey,
         llmModel: model,
@@ -418,36 +411,47 @@ export class LoginState implements GameState {
       };
     };
 
-    const loadActiveTrack = async (settings: UserSettings) => {
-      if ((settings.activeTrack ?? -1) >= 0) {
-        const blob = await musicStore.getTrackBlob(settings.playerName, settings.activeTrack!);
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          musicManager.setTrack(settings.activeTrack!, url);
-        } else {
-          musicManager.setTrack(-1, null);
+    const loadPlaylist = async (settings: UserSettings) => {
+      const entries: PlaylistEntry[] = [{ trackIndex: -1, blobUrl: null }];
+      if (settings.customTracks) {
+        for (const track of settings.customTracks) {
+          const blob = await musicStore.getTrackBlob(settings.playerName, track.slotIndex);
+          if (blob) {
+            entries.push({ trackIndex: track.slotIndex, blobUrl: URL.createObjectURL(blob) });
+          }
         }
-      } else {
-        musicManager.setTrack(-1, null);
       }
+      musicManager.setPlaylist(entries, settings.activeTrack ?? -1);
+    };
+
+    const validateApiKey = (): boolean => {
+      if (!wizardApiKeyInput.value.trim()) {
+        wizardApiKeyInput.style.borderColor = '#e94560';
+        wizardApiKeyInput.setAttribute('placeholder', t('login.apiKeyRequired'));
+        return false;
+      }
+      wizardApiKeyInput.style.borderColor = '';
+      return true;
     };
 
     const onStart = async () => {
+      if (!validateApiKey()) return;
       const settings = buildSettings();
       this.saveSystem.saveSettings(settings);
       musicManager.applySettings(settings.musicEnabled !== false, settings.musicVolume ?? 0.5);
-      await loadActiveTrack(settings);
+      await loadPlaylist(settings);
       musicManager.play();
       this.finish();
       this.onStart(settings, 1, null);
     };
 
     const onContinue = async () => {
+      if (!validateApiKey()) return;
       const settings = buildSettings();
       const save = this.saveSystem.loadProgress(settings.playerName);
       this.saveSystem.saveSettings(settings);
       musicManager.applySettings(settings.musicEnabled !== false, settings.musicVolume ?? 0.5);
-      await loadActiveTrack(settings);
+      await loadPlaylist(settings);
       musicManager.play();
       this.finish();
       this.onStart(settings, save?.currentLevel || 1, save);
@@ -487,7 +491,6 @@ export class LoginState implements GameState {
 
     musicEnabledCb.addEventListener('change', onMusicToggle);
     musicVolumeSlider.addEventListener('input', onMusicVolumeInput);
-    wizardEnabledCb.addEventListener('change', onWizardToggle);
     apiKeyToggle.addEventListener('click', onApiKeyToggle);
     languageSelect.addEventListener('change', onLanguageChange);
     for (const r of providerRadios) r.addEventListener('change', onProviderChange);
@@ -501,7 +504,6 @@ export class LoginState implements GameState {
     this.cleanupFn = () => {
       musicEnabledCb.removeEventListener('change', onMusicToggle);
       musicVolumeSlider.removeEventListener('input', onMusicVolumeInput);
-      wizardEnabledCb.removeEventListener('change', onWizardToggle);
       apiKeyToggle.removeEventListener('click', onApiKeyToggle);
       languageSelect.removeEventListener('change', onLanguageChange);
       for (const r of providerRadios) r.removeEventListener('change', onProviderChange);

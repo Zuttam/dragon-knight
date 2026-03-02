@@ -62,27 +62,17 @@
           </div>
         </div>
 
-        <!-- Advanced Settings (collapsible) -->
-        <details class="advanced-settings-section">
-          <summary class="advanced-settings-toggle" data-i18n="login.advancedSettings">Advanced Settings</summary>
-          <div class="advanced-settings-content">
-            <label class="toggle-row">
-              <input type="checkbox" id="wizard-enabled" checked />
-              <span data-i18n="login.enableWizard">Enable Wizard</span>
-            </label>
-            <div id="wizard-api-settings" class="api-key-row">
-              <div class="wizard-provider-select">
-                <label class="wizard-radio"><input type="radio" name="wizard-provider" value="anthropic" checked /> <span data-i18n="login.anthropic">Anthropic</span></label>
-                <label class="wizard-radio"><input type="radio" name="wizard-provider" value="openai" /> <span data-i18n="login.openai">OpenAI</span></label>
-              </div>
-              <div class="api-key-input-row">
-                <input type="password" id="wizard-api-key" class="wizard-api-key-field" data-i18n-placeholder="login.apiKey" placeholder="API Key" />
-                <button type="button" id="api-key-toggle" class="small-btn api-key-toggle-btn" data-i18n="login.show">Show</button>
-              </div>
-              <select id="wizard-model" class="wizard-api-key-field"></select>
-            </div>
+        <div id="wizard-api-settings" class="api-key-row">
+          <div class="wizard-provider-select">
+            <label class="wizard-radio"><input type="radio" name="wizard-provider" value="openai" checked /> <span data-i18n="login.openai">OpenAI</span></label>
+            <label class="wizard-radio"><input type="radio" name="wizard-provider" value="anthropic" /> <span data-i18n="login.anthropic">Anthropic</span></label>
           </div>
-        </details>
+          <div class="api-key-input-row">
+            <input type="password" id="wizard-api-key" class="wizard-api-key-field" data-i18n-placeholder="login.apiKey" placeholder="API Key" />
+            <button type="button" id="api-key-toggle" class="small-btn api-key-toggle-btn" data-i18n="login.show">Show</button>
+          </div>
+          <select id="wizard-model" class="wizard-api-key-field"></select>
+        </div>
 
         <button id="start-btn" data-i18n="login.beginQuest">Begin Quest</button>
         <button id="continue-btn" style="display: none;" data-i18n="login.continueQuest">Continue Quest</button>

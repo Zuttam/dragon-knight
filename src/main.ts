@@ -6,6 +6,7 @@ import { LevelCompleteState } from './states/LevelCompleteState';
 import { SaveSystem, UserSettings } from './save/SaveSystem';
 import { setLocale } from './i18n';
 import { musicStore } from './audio/MusicStore';
+import type { RewardItem } from './rewards/RewardItem';
 
 const container = document.getElementById('game-container')!;
 const game = new Game(container);
@@ -19,7 +20,7 @@ function goToLogin(): void {
   game.switchState(loginState);
 }
 
-function goToPlay(settings: UserSettings, level: number, save?: any): void {
+function goToPlay(settings: UserSettings, level: number, save?: any, reward?: RewardItem): void {
   setLocale(settings.language);
 
   const playState = new PlayState(
@@ -43,6 +44,7 @@ function goToPlay(settings: UserSettings, level: number, save?: any): void {
     totalTreasures: save?.totalTreasures || 0,
     maxHP: save?.maxHP,
     baseAttack: save?.baseAttackPower,
+    reward,
   });
 }
 
@@ -57,7 +59,7 @@ function goToGameOver(settings: UserSettings, level: number): void {
 function goToLevelComplete(settings: UserSettings, level: number, nextLevel: number): void {
   const save = saveSystem.loadProgress(settings.playerName);
   const levelCompleteState = new LevelCompleteState(
-    (s, nextLvl) => goToPlay(s, nextLvl, save),
+    (s, nextLvl, reward) => goToPlay(s, nextLvl, save, reward),
     () => goToLogin()
   );
   game.switchState(levelCompleteState, { settings, level, nextLevel });
