@@ -3,10 +3,14 @@ import { InputManager } from './InputManager';
 import { TweenManager } from './TweenManager';
 import type { GameState } from './GameState';
 
+export type CameraMode = 'ortho' | 'perspective';
+
 export class Game {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
-  camera: THREE.OrthographicCamera;
+  camera: THREE.Camera;
+  orthoCamera: THREE.OrthographicCamera;
+  perspCamera: THREE.PerspectiveCamera;
   input: InputManager;
   tweens: TweenManager;
 
@@ -34,7 +38,7 @@ export class Game {
     // Orthographic camera (isometric 3/4 top-down view)
     const aspect = this.width / this.height;
     const viewSize = 12;
-    this.camera = new THREE.OrthographicCamera(
+    this.orthoCamera = new THREE.OrthographicCamera(
       -viewSize * aspect,
       viewSize * aspect,
       viewSize,
@@ -42,9 +46,14 @@ export class Game {
       0.1,
       100
     );
-    // Set up ~60° top-down isometric view
-    this.camera.position.set(0, 14, 10);
-    this.camera.lookAt(0, 0, 0);
+    this.orthoCamera.position.set(0, 14, 10);
+    this.orthoCamera.lookAt(0, 0, 0);
+
+    // Perspective camera (first-person view)
+    this.perspCamera = new THREE.PerspectiveCamera(75, aspect, 0.1, 100);
+
+    // Default to orthographic
+    this.camera = this.orthoCamera;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -107,11 +116,22 @@ export class Game {
     this.renderer.render(this.scene, this.camera);
   };
 
+  setActiveCamera(mode: CameraMode): void {
+    if (mode === 'perspective') {
+      this.camera = this.perspCamera;
+    } else {
+      this.camera = this.orthoCamera;
+    }
+  }
+
   private onResize(): void {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
     this.renderer.setSize(this.width, this.height);
-    // Camera frustum is managed by CameraController (which listens to resize itself)
+    // Ortho frustum is managed by CameraController
+    // Update perspective aspect ratio
+    this.perspCamera.aspect = this.width / this.height;
+    this.perspCamera.updateProjectionMatrix();
   }
 
   destroy(): void {

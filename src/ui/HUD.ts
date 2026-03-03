@@ -46,7 +46,7 @@ export class HUD {
     }
   }
 
-  update(knight: KnightState, dragon: DragonStateData, nearTorch: boolean = false): void {
+  update(knight: KnightState, dragon: DragonStateData, interactPromptText?: string): void {
     if (this.knightHPFill) {
       const pct = Math.max(0, knight.hp / knight.maxHP) * 100;
       this.knightHPFill.style.width = `${pct}%`;
@@ -78,7 +78,12 @@ export class HUD {
     }
 
     if (this.interactPrompt) {
-      this.interactPrompt.style.display = nearTorch ? 'block' : 'none';
+      if (interactPromptText) {
+        this.interactPrompt.textContent = interactPromptText;
+        this.interactPrompt.style.display = 'block';
+      } else {
+        this.interactPrompt.style.display = 'none';
+      }
     }
   }
 

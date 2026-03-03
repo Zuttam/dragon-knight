@@ -3,14 +3,23 @@ import { TILE_PROPERTIES, TileType } from '../config/tileProperties';
 /**
  * Field-of-view system using recursive shadowcasting.
  * Reveals tiles visible from the knight's position.
+ *
+ * Uses flat Uint8Array for visible/explored data for performance:
+ * - fill(0) reset instead of nested loops
+ * - better CPU cache locality
+ * - smaller memory footprint
  */
 export class VisibilitySystem {
-  private width: number;
-  private height: number;
+  width: number;
+  height: number;
   private tiles: TileType[][];
-  visible: boolean[][];
-  explored: boolean[][];
+  /** Flat visibility array: 1 = visible, 0 = not. Index = y * width + x */
+  visible: Uint8Array;
+  /** Flat explored array: 1 = explored, 0 = not. Index = y * width + x */
+  explored: Uint8Array;
   private viewRange: number;
+  revealAll: boolean = false;
+  private exploredPerFloor: Map<number, Uint8Array> = new Map();
 
   private static readonly MULTIPLIERS = [
     [1, 0, 0, -1, -1, 0, 0, 1],
@@ -25,12 +34,18 @@ export class VisibilitySystem {
     this.tiles = tiles;
     this.viewRange = viewRange;
 
-    this.visible = [];
-    this.explored = [];
-    for (let y = 0; y < height; y++) {
-      this.visible[y] = new Array(width).fill(false);
-      this.explored[y] = new Array(width).fill(false);
-    }
+    this.visible = new Uint8Array(width * height);
+    this.explored = new Uint8Array(width * height);
+  }
+
+  isVisible(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    return this.visible[y * this.width + x] === 1;
+  }
+
+  isExplored(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    return this.explored[y * this.width + x] === 1;
   }
 
   updateTiles(tiles: TileType[][]): void {
@@ -38,17 +53,21 @@ export class VisibilitySystem {
   }
 
   compute(originX: number, originY: number): void {
-    // Reset visibility
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        this.visible[y][x] = false;
-      }
+    // Reveal all mode: mark everything visible+explored
+    if (this.revealAll) {
+      this.visible.fill(1);
+      this.explored.fill(1);
+      return;
     }
+
+    // Reset visibility (single call instead of nested loops)
+    this.visible.fill(0);
 
     // Origin is always visible
     if (this.isInBounds(originX, originY)) {
-      this.visible[originY][originX] = true;
-      this.explored[originY][originX] = true;
+      const idx = originY * this.width + originX;
+      this.visible[idx] = 1;
+      this.explored[idx] = 1;
     }
 
     // Cast shadows in 8 octants
@@ -91,8 +110,9 @@ export class VisibilitySystem {
         if (distSq > this.viewRange * this.viewRange) continue;
 
         if (this.isInBounds(mapX, mapY)) {
-          this.visible[mapY][mapX] = true;
-          this.explored[mapY][mapX] = true;
+          const idx = mapY * this.width + mapX;
+          this.visible[idx] = 1;
+          this.explored[idx] = 1;
         }
 
         if (blocked) {
@@ -120,5 +140,29 @@ export class VisibilitySystem {
 
   private isInBounds(x: number, y: number): boolean {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  /**
+   * Switch visibility state for a new floor.
+   * Saves current explored state and loads/creates the target floor's state.
+   */
+  switchFloor(floorIndex: number, newWidth: number, newHeight: number, newTiles: TileType[][], currentFloorIndex: number): void {
+    // Save current explored state
+    this.exploredPerFloor.set(currentFloorIndex, this.explored);
+
+    // Load or create target floor's explored state
+    let targetExplored = this.exploredPerFloor.get(floorIndex);
+    if (!targetExplored) {
+      targetExplored = new Uint8Array(newWidth * newHeight);
+      this.exploredPerFloor.set(floorIndex, targetExplored);
+    }
+
+    this.width = newWidth;
+    this.height = newHeight;
+    this.tiles = newTiles;
+    this.explored = targetExplored;
+
+    // Reset visible array to new dimensions
+    this.visible = new Uint8Array(newWidth * newHeight);
   }
 }

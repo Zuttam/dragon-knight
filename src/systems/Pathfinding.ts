@@ -13,11 +13,12 @@ interface Point {
 export function findPath(
   startX: number, startY: number,
   goalX: number, goalY: number,
-  tiles: TileType[][], width: number, height: number
+  tiles: TileType[][], width: number, height: number,
+  furnitureBlocked?: Set<string>
 ): Point[] | null {
   if (startX === goalX && startY === goalY) return [{ x: goalX, y: goalY }];
 
-  if (!isWalkable(goalX, goalY, tiles, width, height)) return null;
+  if (!isWalkable(goalX, goalY, tiles, width, height, furnitureBlocked)) return null;
 
   const key = (x: number, y: number) => y * width + x;
   const visited = new Set<number>();
@@ -46,6 +47,7 @@ export function findPath(
       const nk = key(nx, ny);
       if (visited.has(nk)) continue;
       if (!TILE_PROPERTIES[tiles[ny][nx]].walkable) continue;
+      if (furnitureBlocked?.has(`${nx},${ny}`)) continue;
 
       visited.add(nk);
       parent.set(nk, cur);
@@ -67,10 +69,11 @@ export function findPath(
 export function isReachable(
   startX: number, startY: number,
   goalX: number, goalY: number,
-  tiles: TileType[][], width: number, height: number
+  tiles: TileType[][], width: number, height: number,
+  furnitureBlocked?: Set<string>
 ): boolean {
   if (startX === goalX && startY === goalY) return true;
-  if (!isWalkable(goalX, goalY, tiles, width, height)) return false;
+  if (!isWalkable(goalX, goalY, tiles, width, height, furnitureBlocked)) return false;
 
   const key = (x: number, y: number) => y * width + x;
   const visited = new Set<number>();
@@ -96,6 +99,7 @@ export function isReachable(
       const nk = key(nx, ny);
       if (visited.has(nk)) continue;
       if (!TILE_PROPERTIES[tiles[ny][nx]].walkable) continue;
+      if (furnitureBlocked?.has(`${nx},${ny}`)) continue;
 
       if (nk === goalKey) return true;
       visited.add(nk);
@@ -106,9 +110,11 @@ export function isReachable(
   return false;
 }
 
-function isWalkable(x: number, y: number, tiles: TileType[][], width: number, height: number): boolean {
+function isWalkable(x: number, y: number, tiles: TileType[][], width: number, height: number, furnitureBlocked?: Set<string>): boolean {
   if (x < 0 || x >= width || y < 0 || y >= height) return false;
-  return TILE_PROPERTIES[tiles[y][x]].walkable;
+  if (!TILE_PROPERTIES[tiles[y][x]].walkable) return false;
+  if (furnitureBlocked?.has(`${x},${y}`)) return false;
+  return true;
 }
 
 function reconstructPath(

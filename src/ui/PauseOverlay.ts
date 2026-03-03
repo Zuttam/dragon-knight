@@ -2,6 +2,8 @@ import { t } from '../i18n';
 import { musicManager } from '../audio/MusicManager';
 import type { CustomTrackMeta } from '../audio/MusicStore';
 
+export type CameraModeOption = 'firstPerson' | 'firstPersonLocked' | 'thirdPerson';
+
 export class PauseOverlay {
   private container: HTMLElement | null = null;
   private onResume: () => void;
@@ -9,20 +11,36 @@ export class PauseOverlay {
   private onExitDungeon: () => void;
   private onMusicSettingsChange?: (enabled: boolean, volume: number) => void;
   private onTrackChange?: (trackIndex: number) => void;
+  private onCameraModeChange?: (mode: CameraModeOption) => void;
+  private onRevealMapChange?: (revealed: boolean) => void;
   private customTracks: CustomTrackMeta[] = [];
+  private currentCameraMode: CameraModeOption = 'thirdPerson';
+  private revealMapEnabled: boolean = false;
 
   constructor(
     onResume: () => void,
     onExportSave: () => void,
     onExitDungeon: () => void,
     onMusicSettingsChange?: (enabled: boolean, volume: number) => void,
-    onTrackChange?: (trackIndex: number) => void
+    onTrackChange?: (trackIndex: number) => void,
+    onCameraModeChange?: (mode: CameraModeOption) => void,
+    onRevealMapChange?: (revealed: boolean) => void
   ) {
     this.onResume = onResume;
     this.onExportSave = onExportSave;
     this.onExitDungeon = onExitDungeon;
     this.onMusicSettingsChange = onMusicSettingsChange;
     this.onTrackChange = onTrackChange;
+    this.onCameraModeChange = onCameraModeChange;
+    this.onRevealMapChange = onRevealMapChange;
+  }
+
+  setCameraMode(mode: CameraModeOption): void {
+    this.currentCameraMode = mode;
+  }
+
+  setRevealMap(enabled: boolean): void {
+    this.revealMapEnabled = enabled;
   }
 
   setTrackInfo(customTracks: CustomTrackMeta[]): void {
@@ -46,6 +64,13 @@ export class PauseOverlay {
     }
     const trackRowDisplay = (musicManager.enabled && this.customTracks.length > 0) ? 'flex' : 'none';
 
+    const revealMapChecked = this.revealMapEnabled ? 'checked' : '';
+
+    const isMobile = 'ontouchstart' in window;
+    const cameraThirdSelected = this.currentCameraMode === 'thirdPerson' ? 'selected' : '';
+    const cameraFirstSelected = this.currentCameraMode === 'firstPerson' ? 'selected' : '';
+    const cameraFirstLockedSelected = this.currentCameraMode === 'firstPersonLocked' ? 'selected' : '';
+
     this.container.innerHTML = `
       <div class="pause-box">
         <h2>${t('pause.title')}</h2>
@@ -63,6 +88,24 @@ export class PauseOverlay {
             <label class="volume-label">${t('pause.track')}</label>
             <select id="pause-track-select" class="pause-track-select">${trackOptions}</select>
           </div>
+        </div>
+        ${!isMobile ? `
+        <div class="pause-camera-section">
+          <div class="pause-track-row" style="display: flex;">
+            <label class="volume-label">${t('pause.cameraView')}</label>
+            <select id="pause-camera-select" class="pause-track-select">
+              <option value="thirdPerson" ${cameraThirdSelected}>${t('pause.thirdPerson')}</option>
+              <option value="firstPerson" ${cameraFirstSelected}>${t('pause.firstPerson')}</option>
+              <option value="firstPersonLocked" ${cameraFirstLockedSelected}>${t('pause.firstPersonLocked')}</option>
+            </select>
+          </div>
+        </div>
+        ` : ''}
+        <div class="pause-music-section">
+          <label class="toggle-row">
+            <input type="checkbox" id="pause-reveal-map-toggle" ${revealMapChecked} />
+            <span>${t('pause.revealMap')}</span>
+          </label>
         </div>
         <button id="export-save-btn" class="overlay-btn secondary-btn">${t('pause.exportSave')}</button>
         <button id="exit-dungeon-btn" class="overlay-btn secondary-btn">${t('pause.exitDungeon')}</button>
@@ -97,6 +140,21 @@ export class PauseOverlay {
       const trackIndex = parseInt(trackSelect.value, 10);
       this.onTrackChange?.(trackIndex);
     });
+
+    const revealMapToggle = document.getElementById('pause-reveal-map-toggle') as HTMLInputElement;
+    revealMapToggle.addEventListener('change', () => {
+      this.revealMapEnabled = revealMapToggle.checked;
+      this.onRevealMapChange?.(revealMapToggle.checked);
+    });
+
+    const cameraSelect = document.getElementById('pause-camera-select') as HTMLSelectElement | null;
+    if (cameraSelect) {
+      cameraSelect.addEventListener('change', () => {
+        const mode = cameraSelect.value as CameraModeOption;
+        this.currentCameraMode = mode;
+        this.onCameraModeChange?.(mode);
+      });
+    }
   }
 
   hide(): void {

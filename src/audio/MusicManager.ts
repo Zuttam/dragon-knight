@@ -1,4 +1,4 @@
-const DEFAULT_SRC = '/Dragon-Knight-theme.mp3';
+const DEFAULT_SRC = '/assets/audio/Dragon-Knight-theme.mp3';
 
 export interface PlaylistEntry {
   trackIndex: number;  // -1 = default theme, 0+ = custom slot

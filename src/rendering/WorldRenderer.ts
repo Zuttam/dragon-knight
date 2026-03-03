@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { TileType, TILE_PROPERTIES } from '../config/tileProperties';
-import { WorldState, TorchState } from '../state/WorldState';
+import { WorldState, TorchState, FurnitureType } from '../state/WorldState';
 import { ModelFactory } from './ModelFactory';
 
 interface TileGroup {
@@ -21,6 +21,19 @@ export class WorldRenderer {
   private torchLights: THREE.PointLight[] = [];
   private torchFlames: THREE.Mesh[] = [];
   private torchTime: number = 0;
+
+  // Furniture
+  private furnitureModels: THREE.Group[] = [];
+  private wardrobeModelsByKey: Map<string, THREE.Group> = new Map();
+  private chandelierLights: THREE.PointLight[] = [];
+  private fireplaceLights: THREE.PointLight[] = [];
+
+  // Stairs
+  private stairModels: THREE.Group[] = [];
+  private stairArrows: THREE.Mesh[] = [];
+  private stairPortals: THREE.Mesh[] = [];
+  private stairLights: THREE.PointLight[] = [];
+  private stairTime: number = 0;
 
   private static woodTexture: THREE.CanvasTexture | null = null;
 
@@ -150,12 +163,19 @@ export class WorldRenderer {
 
     // Build torches
     this.buildTorches(world);
+
+    // Build furniture
+    this.buildFurniture(world);
+
+    // Build staircase models
+    this.buildStairs(world);
   }
 
   private visualTileType(t: TileType): TileType {
-    // Spawn/waypoint/treasure tiles render as floor
+    // Spawn/waypoint/treasure/stair tiles render as floor (stairs get a separate 3D model)
     if (t === TileType.KNIGHT_SPAWN || t === TileType.DRAGON_SPAWN ||
-        t === TileType.TREASURE || t === TileType.DRAGON_WAYPOINT) {
+        t === TileType.TREASURE || t === TileType.DRAGON_WAYPOINT ||
+        t === TileType.STAIRS) {
       return TileType.FLOOR;
     }
     return t;
@@ -163,26 +183,26 @@ export class WorldRenderer {
 
   private isFlat(tileType: TileType): boolean {
     return tileType !== TileType.WALL && tileType !== TileType.WOOD_WALL
-      && tileType !== TileType.ELEVATED_WALL && tileType !== TileType.STAIRS;
+      && tileType !== TileType.ELEVATED_WALL;
   }
 
   private getTileMeshInfo(tileType: TileType): { geometry: THREE.BufferGeometry; material: THREE.Material; yOffset: number } {
     switch (tileType) {
       case TileType.WALL:
         return {
-          geometry: new THREE.BoxGeometry(1, 0.8, 1),
+          geometry: new THREE.BoxGeometry(1, 2.5, 1),
           material: new THREE.MeshStandardMaterial({ color: 0x555566 }),
-          yOffset: 0.4,
+          yOffset: 1.25,
         };
       case TileType.WOOD_WALL:
         return {
-          geometry: new THREE.BoxGeometry(1, 0.6, 1),
+          geometry: new THREE.BoxGeometry(1, 2.0, 1),
           material: new THREE.MeshStandardMaterial({
             color: 0xccaa66,
             map: WorldRenderer.createWoodTexture(),
             roughness: 0.8,
           }),
-          yOffset: 0.3,
+          yOffset: 1.0,
         };
       case TileType.SHADOW:
         return {
@@ -212,12 +232,6 @@ export class WorldRenderer {
           material: new THREE.MeshStandardMaterial({ color: 0x886633 }),
           yOffset: 0.002,
         };
-      case TileType.STAIRS:
-        return {
-          geometry: new THREE.BoxGeometry(1, 0.4, 1),
-          material: new THREE.MeshStandardMaterial({ color: 0x666677 }),
-          yOffset: 0.2,
-        };
       case TileType.ELEVATED_FLOOR:
         return {
           geometry: new THREE.PlaneGeometry(1, 1),
@@ -226,9 +240,9 @@ export class WorldRenderer {
         };
       case TileType.ELEVATED_WALL:
         return {
-          geometry: new THREE.BoxGeometry(1, 1.2, 1),
+          geometry: new THREE.BoxGeometry(1, 3.0, 1),
           material: new THREE.MeshStandardMaterial({ color: 0x666677 }),
-          yOffset: 0.6 + 0.4, // sits on top of the elevated floor
+          yOffset: 1.5 + 0.4, // sits on top of the elevated floor
         };
       default: // FLOOR and others
         return {
@@ -315,7 +329,7 @@ export class WorldRenderer {
 
       // Add point light — warm glow with realistic falloff
       const light = new THREE.PointLight(0xff8833, torch.lit ? 3.0 : 0, 7, 1.5);
-      light.position.set(torch.x + 0.5, 0.9, torch.y + 0.5);
+      light.position.set(torch.x + 0.5, 1.6, torch.y + 0.5);
       this.scene.add(light);
       this.torchLights.push(light);
 
@@ -324,6 +338,130 @@ export class WorldRenderer {
         (foundFlame as THREE.Mesh).visible = torch.lit;
       }
     }
+  }
+
+  private buildFurniture(world: WorldState): void {
+    for (const f of world.furniture) {
+      // Skip already-broken furniture
+      if (world.brokenFurniture?.has(`${f.x},${f.y}`)) continue;
+
+      let model: THREE.Group;
+      switch (f.type) {
+        case FurnitureType.TABLE:       model = ModelFactory.createTable(); break;
+        case FurnitureType.CHAIR:       model = ModelFactory.createChair(); break;
+        case FurnitureType.WARDROBE:    model = ModelFactory.createWardrobe(); break;
+        case FurnitureType.BOOKSHELF:   model = ModelFactory.createBookshelf(f.variant); break;
+        case FurnitureType.BARREL:      model = ModelFactory.createBarrel(); break;
+        case FurnitureType.BED:         model = ModelFactory.createBed(f.variant); break;
+        case FurnitureType.RUG:         model = ModelFactory.createRug(f.variant); break;
+        case FurnitureType.CHANDELIER:  model = ModelFactory.createChandelier(); break;
+        case FurnitureType.ARMOR_STAND: model = ModelFactory.createArmorStand(); break;
+        case FurnitureType.BANNER:      model = ModelFactory.createBanner(f.variant); break;
+        case FurnitureType.FIREPLACE:   model = ModelFactory.createFireplace(); break;
+        case FurnitureType.CAULDRON:    model = ModelFactory.createCauldron(); break;
+        case FurnitureType.BENCH:       model = ModelFactory.createBench(); break;
+        case FurnitureType.CRATE:       model = ModelFactory.createCrate(f.variant); break;
+        case FurnitureType.WEAPON_RACK: model = ModelFactory.createWeaponRack(f.variant); break;
+        default: continue;
+      }
+
+      model.position.set(f.x + 0.5, 0, f.y + 0.5);
+      model.rotation.y = f.rotation;
+      this.scene.add(model);
+      this.furnitureModels.push(model);
+
+      if (f.type === FurnitureType.WARDROBE) {
+        this.wardrobeModelsByKey.set(`${f.x},${f.y}`, model);
+      }
+
+      if (f.type === FurnitureType.CHANDELIER) {
+        const light = new THREE.PointLight(0xff8833, 1.5, 5);
+        light.position.set(f.x + 0.5, 2.0, f.y + 0.5);
+        this.scene.add(light);
+        this.chandelierLights.push(light);
+      }
+
+      if (f.type === FurnitureType.FIREPLACE) {
+        const light = new THREE.PointLight(0xff5522, 2.5, 6, 1.5);
+        light.position.set(f.x + 0.5, 0.5, f.y + 0.5);
+        this.scene.add(light);
+        this.fireplaceLights.push(light);
+      }
+    }
+  }
+
+  private buildStairs(world: WorldState): void {
+    for (let y = 0; y < world.height; y++) {
+      for (let x = 0; x < world.width; x++) {
+        if (world.tiles[y][x] !== TileType.STAIRS) continue;
+
+        const model = ModelFactory.createStaircase();
+
+        // Orient stairs so the entry (low end) faces a walkable adjacent tile
+        const dirs = [
+          { dx: 0, dy: 1, angle: 0 },          // walkable to south → entry faces south
+          { dx: 1, dy: 0, angle: Math.PI / 2 }, // walkable to east → entry faces east
+          { dx: 0, dy: -1, angle: Math.PI },     // walkable to north → entry faces north
+          { dx: -1, dy: 0, angle: -Math.PI / 2 }, // walkable to west → entry faces west
+        ];
+
+        let facing = 0;
+        for (const dir of dirs) {
+          const nx = x + dir.dx;
+          const ny = y + dir.dy;
+          if (nx >= 0 && nx < world.width && ny >= 0 && ny < world.height) {
+            if (TILE_PROPERTIES[world.tiles[ny][nx]].walkable && world.tiles[ny][nx] !== TileType.STAIRS) {
+              facing = dir.angle;
+              break;
+            }
+          }
+        }
+
+        model.position.set(x + 0.5, 0, y + 0.5);
+        model.rotation.y = facing;
+        this.scene.add(model);
+        this.stairModels.push(model);
+
+        // Find arrow and portal meshes for animation
+        model.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            if (child.name === 'stair_arrow') this.stairArrows.push(child);
+            if (child.name === 'stair_portal') this.stairPortals.push(child);
+          }
+        });
+
+        // Blue point light illuminating the staircase area
+        const light = new THREE.PointLight(0x6699ee, 3.0, 7, 1.2);
+        light.position.set(x + 0.5, 2.5, y + 0.5);
+        this.scene.add(light);
+        this.stairLights.push(light);
+      }
+    }
+  }
+
+  /** Open or close wardrobe doors at tile position (x, y). */
+  setWardrobeOpen(x: number, y: number, open: boolean): void {
+    const model = this.wardrobeModelsByKey.get(`${x},${y}`);
+    if (!model) return;
+
+    const doorL = model.getObjectByName('wardrobe_door_left');
+    const doorR = model.getObjectByName('wardrobe_door_right');
+
+    // Doors swing outward: left pivot rotates +90°, right pivot -90°
+    if (doorL) doorL.rotation.y = open ? Math.PI / 2 : 0;
+    if (doorR) doorR.rotation.y = open ? -Math.PI / 2 : 0;
+  }
+
+  /** Visually remove a broken wardrobe. */
+  removeWardrobe(x: number, y: number): void {
+    const key = `${x},${y}`;
+    const model = this.wardrobeModelsByKey.get(key);
+    if (!model) return;
+
+    this.scene.remove(model);
+    this.wardrobeModelsByKey.delete(key);
+    const idx = this.furnitureModels.indexOf(model);
+    if (idx !== -1) this.furnitureModels.splice(idx, 1);
   }
 
   updateTorchStates(torches: TorchState[]): void {
@@ -336,10 +474,13 @@ export class WorldRenderer {
     }
   }
 
+  private static readonly LIGHT_CULL_DIST_SQ = 10 * 10; // 10-tile radius squared
+
   /**
    * Update lava glow animation and torch flicker.
+   * Culls lights beyond LIGHT_CULL_DIST_SQ from the knight to reduce GPU work.
    */
-  update(delta: number): void {
+  update(delta: number, knightX?: number, knightZ?: number): void {
     this.lavaTime += delta * 0.001;
     if (this.lavaPlanes) {
       const mat = this.lavaPlanes.mesh.material as THREE.MeshStandardMaterial;
@@ -347,10 +488,25 @@ export class WorldRenderer {
       mat.emissiveIntensity = 0.3 + t * 0.4;
     }
 
-    // Torch flame flicker
+    const cullDist = WorldRenderer.LIGHT_CULL_DIST_SQ;
+    const hasCull = knightX !== undefined && knightZ !== undefined;
+
+    // Torch flame flicker with distance culling
     this.torchTime += delta * 0.001;
     for (let i = 0; i < this.torchLights.length; i++) {
       const light = this.torchLights[i];
+
+      // Distance cull: hide lights far from the knight
+      if (hasCull) {
+        const dx = light.position.x - knightX;
+        const dz = light.position.z - knightZ;
+        const near = dx * dx + dz * dz <= cullDist;
+        light.visible = near;
+        const flame = this.torchFlames[i];
+        if (flame) flame.visible = near && light.intensity > 0;
+        if (!near) continue;
+      }
+
       if (light.intensity > 0) {
         light.intensity = 2.5 + Math.sin(this.torchTime * 8 + i * 2.3) * 0.5
           + Math.sin(this.torchTime * 13 + i * 1.7) * 0.3;
@@ -361,6 +517,65 @@ export class WorldRenderer {
           flame.scale.set(s, s, s);
         }
       }
+    }
+
+    // Chandelier light flicker with distance culling
+    for (let i = 0; i < this.chandelierLights.length; i++) {
+      const cl = this.chandelierLights[i];
+
+      if (hasCull) {
+        const dx = cl.position.x - knightX;
+        const dz = cl.position.z - knightZ;
+        cl.visible = dx * dx + dz * dz <= cullDist;
+        if (!cl.visible) continue;
+      }
+
+      cl.intensity = 1.3 + Math.sin(this.torchTime * 4 + i * 1.9) * 0.2;
+    }
+
+    // Fireplace light flicker with distance culling
+    for (let i = 0; i < this.fireplaceLights.length; i++) {
+      const fl = this.fireplaceLights[i];
+
+      if (hasCull) {
+        const dx = fl.position.x - knightX;
+        const dz = fl.position.z - knightZ;
+        fl.visible = dx * dx + dz * dz <= cullDist;
+        if (!fl.visible) continue;
+      }
+
+      fl.intensity = 2.2 + Math.sin(this.torchTime * 6 + i * 2.7) * 0.5
+        + Math.sin(this.torchTime * 11 + i * 1.3) * 0.3;
+    }
+
+    // Stair animations
+    this.stairTime += delta * 0.001;
+
+    // Arrow bobbing + rotation
+    for (let i = 0; i < this.stairArrows.length; i++) {
+      const arrow = this.stairArrows[i];
+      const bob = Math.sin(this.stairTime * 2.5) * 0.12;
+      arrow.position.y = 2.95 + bob; // portalTop(2.5) + 0.45 + bob
+      arrow.rotation.y += delta * 0.002;
+    }
+
+    // Portal fill pulsing opacity
+    for (let i = 0; i < this.stairPortals.length; i++) {
+      const portal = this.stairPortals[i];
+      const mat = portal.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.15 + Math.sin(this.stairTime * 2.0 + i) * 0.12;
+    }
+
+    // Stair lights pulsing with distance culling
+    for (let i = 0; i < this.stairLights.length; i++) {
+      const sl = this.stairLights[i];
+      if (hasCull) {
+        const dx = sl.position.x - knightX;
+        const dz = sl.position.z - knightZ;
+        sl.visible = dx * dx + dz * dz <= cullDist;
+        if (!sl.visible) continue;
+      }
+      sl.intensity = 2.5 + Math.sin(this.stairTime * 2.0 + i * 2.1) * 0.8;
     }
   }
 
@@ -429,7 +644,7 @@ export class WorldRenderer {
     if (idx === undefined) return;
 
     const dummy = new THREE.Object3D();
-    dummy.position.set(x + 0.5, 0.3, y + 0.5); // yOffset for WOOD_WALL
+    dummy.position.set(x + 0.5, 1.0, y + 0.5); // yOffset for WOOD_WALL
     dummy.scale.set(scale, scale, scale);
     dummy.updateMatrix();
     group.mesh.setMatrixAt(idx, dummy.matrix);
@@ -473,5 +688,35 @@ export class WorldRenderer {
     }
     this.torchLights = [];
     this.torchFlames = [];
+
+    // Clean up furniture
+    for (const model of this.furnitureModels) {
+      this.scene.remove(model);
+    }
+    this.furnitureModels = [];
+    this.wardrobeModelsByKey.clear();
+    for (const light of this.chandelierLights) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.chandelierLights = [];
+    for (const light of this.fireplaceLights) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.fireplaceLights = [];
+
+    // Clean up stairs
+    for (const model of this.stairModels) {
+      this.scene.remove(model);
+    }
+    this.stairModels = [];
+    this.stairArrows = [];
+    this.stairPortals = [];
+    for (const light of this.stairLights) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.stairLights = [];
   }
 }

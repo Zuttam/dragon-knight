@@ -78,6 +78,10 @@ export class FloatingText {
     }
   }
 
+  setCamera(camera: THREE.Camera): void {
+    this.camera = camera;
+  }
+
   dispose(): void {
     this.container.remove();
     this.items = [];

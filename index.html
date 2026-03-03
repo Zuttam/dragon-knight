@@ -10,7 +10,7 @@
   <div id="game-container"></div>
   <div id="login-overlay" style="display: none;">
     <div class="login-box">
-      <img src="/dragon-knight.png" alt="Dragon Knight" class="login-cover" />
+      <img src="/assets/images/dragon-knight.png" alt="Dragon Knight" class="login-cover" />
       <h1 class="sr-only" data-i18n="login.title">Dragon Knight</h1>
       <p class="subtitle" data-i18n="login.subtitle">Sneak. Strike. Survive.</p>
 
@@ -60,6 +60,24 @@
             </div>
             <div id="music-track-list" class="music-track-list"></div>
           </div>
+        </div>
+
+        <div id="camera-settings" class="music-settings-section" style="display: none;">
+          <div class="volume-row">
+            <label class="volume-label" data-i18n="pause.cameraView">Camera View</label>
+            <select id="camera-mode-select" class="pause-track-select">
+              <option value="thirdPerson" data-i18n="pause.thirdPerson">Third Person</option>
+              <option value="firstPerson" data-i18n="pause.firstPerson">First Person</option>
+              <option value="firstPersonLocked" data-i18n="pause.firstPersonLocked">First Person (Locked)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="music-settings-section">
+          <label class="toggle-row">
+            <input type="checkbox" id="reveal-map-enabled" />
+            <span data-i18n="login.revealMap">Reveal Map</span>
+          </label>
         </div>
 
         <div id="wizard-api-settings" class="api-key-row">

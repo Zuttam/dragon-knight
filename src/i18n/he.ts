@@ -9,6 +9,7 @@ export const he: TranslationMap = {
   'login.namePlaceholder': 'הכנס את שמך, אביר...',
   'login.age': 'גיל',
   'login.enableMusic': 'מוזיקת רקע',
+  'login.revealMap': 'חשוף מפה',
   'login.musicVolume': 'עוצמת מוזיקה',
   'login.customTracks': 'שירים מותאמים',
   'login.uploadTrack': '+ העלאה',
@@ -39,6 +40,8 @@ export const he: TranslationMap = {
   'hud.dragon': 'דרקון',
   'hud.levelTitle': 'שלב {{level}} - {{name}}',
   'hud.torchPrompt': '[E] הדלק / כבה',
+  'hud.wardrobePrompt': '[E] התחבא בארון',
+  'hud.exitWardrobePrompt': '[E] צא מהארון',
   'hud.atkPowerUp': 'התק',
   'hud.spdPowerUp': 'מהר',
   'hud.clkPowerUp': 'חמק',
@@ -51,6 +54,11 @@ export const he: TranslationMap = {
   'pause.musicVolume': 'עוצמה',
   'pause.track': 'שיר',
   'pause.defaultTheme': 'נושא ברירת מחדל',
+  'pause.cameraView': 'תצוגת מצלמה',
+  'pause.firstPerson': 'גוף ראשון',
+  'pause.firstPersonLocked': 'גוף ראשון (נעול)',
+  'pause.thirdPerson': 'גוף שלישי',
+  'pause.revealMap': 'חשוף מפה',
   'pause.exportSave': 'ייצוא שמירה',
   'pause.exitDungeon': 'עזוב את המבוך',
 
@@ -89,6 +97,8 @@ export const he: TranslationMap = {
   'wizard.spellFailed': 'כישוף הקוסם נכשל',
 
   // Floating text
+  'floating.floor': 'קומה {{level}}',
+  'floating.groundFloor': 'קומת קרקע',
   'floating.healWizard': '+נק״ח (קוסם)',
   'floating.wizardAtk': '!התקפת קוסם',
   'floating.wizardSpeed': '!מהירות קוסם',
@@ -106,6 +116,9 @@ export const he: TranslationMap = {
   'floating.lit': '!דולק',
   'floating.extinguished': '!כבוי',
   'floating.dangerApproaches': '!סכנה מתקרבת',
+  'floating.hiding': '!מתחבא',
+  'floating.exitWardrobe': '!יצאת',
+  'floating.wardrobeDestroyed': '!נהרס',
 
   // Mobile
   'mobile.attack': 'תקוף',

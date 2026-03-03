@@ -9,6 +9,7 @@ export const es: TranslationMap = {
   'login.namePlaceholder': 'Ingresa tu nombre, Caballero...',
   'login.age': 'Edad',
   'login.enableMusic': 'Música de Fondo',
+  'login.revealMap': 'Revelar Mapa',
   'login.musicVolume': 'Volumen de Música',
   'login.customTracks': 'Pistas Personalizadas',
   'login.uploadTrack': '+ Subir',
@@ -39,6 +40,8 @@ export const es: TranslationMap = {
   'hud.dragon': 'Dragón',
   'hud.levelTitle': 'Nivel {{level}} - {{name}}',
   'hud.torchPrompt': '[E] Encender / Apagar',
+  'hud.wardrobePrompt': '[E] Esconderse en el Armario',
+  'hud.exitWardrobePrompt': '[E] Salir del Armario',
   'hud.atkPowerUp': 'ATQ',
   'hud.spdPowerUp': 'VEL',
   'hud.clkPowerUp': 'SIG',
@@ -51,6 +54,11 @@ export const es: TranslationMap = {
   'pause.musicVolume': 'Volumen',
   'pause.track': 'Pista',
   'pause.defaultTheme': 'Tema Predeterminado',
+  'pause.cameraView': 'Vista de Cámara',
+  'pause.firstPerson': 'Primera Persona',
+  'pause.firstPersonLocked': 'Primera Persona (Fija)',
+  'pause.thirdPerson': 'Tercera Persona',
+  'pause.revealMap': 'Revelar Mapa',
   'pause.exportSave': 'Exportar Partida',
   'pause.exitDungeon': 'Salir de la Mazmorra',
 
@@ -89,6 +97,8 @@ export const es: TranslationMap = {
   'wizard.spellFailed': 'El hechizo del mago falló',
 
   // Floating text
+  'floating.floor': 'Piso {{level}}',
+  'floating.groundFloor': 'Planta Baja',
   'floating.healWizard': '+PV (Mago)',
   'floating.wizardAtk': '¡ATQ MAGO!',
   'floating.wizardSpeed': '¡VEL MAGO!',
@@ -106,6 +116,9 @@ export const es: TranslationMap = {
   'floating.lit': '¡Encendida!',
   'floating.extinguished': '¡Apagada!',
   'floating.dangerApproaches': '¡El peligro se acerca!',
+  'floating.hiding': '¡Escondido!',
+  'floating.exitWardrobe': '¡Saliste!',
+  'floating.wardrobeDestroyed': '¡DESTRUIDO!',
 
   // Mobile
   'mobile.attack': 'ATACAR',

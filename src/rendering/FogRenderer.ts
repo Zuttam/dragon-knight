@@ -42,7 +42,7 @@ export class FogRenderer {
     });
 
     this.fogMesh = new THREE.Mesh(geo, mat);
-    this.fogMesh.position.set(width / 2, 0.9, height / 2);
+    this.fogMesh.position.set(width / 2, 2.6, height / 2);
     this.fogMesh.rotation.x = -Math.PI / 2;
     this.fogMesh.renderOrder = 100;
     this.scene.add(this.fogMesh);
@@ -51,23 +51,43 @@ export class FogRenderer {
   update(visibility: VisibilitySystem): void {
     if (!this.fogData || !this.fogTexture) return;
 
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        // DataTexture UV is bottom-up, so flip y
-        const texY = this.height - 1 - y;
-        const idx = (texY * this.width + x) * 4;
+    let dirty = false;
 
-        if (visibility.visible[y][x]) {
-          this.fogData[idx + 3] = 0;     // Fully visible
-        } else if (visibility.explored[y][x]) {
-          this.fogData[idx + 3] = 130;   // Explored but not visible
+    for (let y = 0; y < this.height; y++) {
+      // DataTexture UV is bottom-up, so flip y
+      const texY = this.height - 1 - y;
+      const texRowOffset = texY * this.width;
+      const visRowOffset = y * visibility.width;
+
+      for (let x = 0; x < this.width; x++) {
+        const idx = (texRowOffset + x) * 4;
+        const visIdx = visRowOffset + x;
+
+        let alpha: number;
+        if (visibility.visible[visIdx] === 1) {
+          alpha = 0;     // Fully visible
+        } else if (visibility.explored[visIdx] === 1) {
+          alpha = 130;   // Explored but not visible
         } else {
-          this.fogData[idx + 3] = 220;   // Unexplored
+          alpha = 220;   // Unexplored
+        }
+
+        if (this.fogData[idx + 3] !== alpha) {
+          this.fogData[idx + 3] = alpha;
+          dirty = true;
         }
       }
     }
 
-    this.fogTexture.needsUpdate = true;
+    if (dirty) {
+      this.fogTexture.needsUpdate = true;
+    }
+  }
+
+  setVisible(visible: boolean): void {
+    if (this.fogMesh) {
+      this.fogMesh.visible = visible;
+    }
   }
 
   dispose(): void {

@@ -10,7 +10,8 @@ export class MovementSystem {
     delta: number,
     tiles: TileType[][],
     width: number,
-    height: number
+    height: number,
+    furnitureBlocked?: Set<string>
   ): void {
     const dt = delta / 1000;
     const newX = entity.x + entity.vx * dt;
@@ -20,12 +21,12 @@ export class MovementSystem {
     const r = 0.35;
 
     // Check X movement
-    if (this.canMoveTo(newX, entity.y, r, tiles, width, height)) {
+    if (this.canMoveTo(newX, entity.y, r, tiles, width, height, furnitureBlocked)) {
       entity.x = newX;
     }
 
     // Check Y movement
-    if (this.canMoveTo(entity.x, newY, r, tiles, width, height)) {
+    if (this.canMoveTo(entity.x, newY, r, tiles, width, height, furnitureBlocked)) {
       entity.y = newY;
     }
 
@@ -37,7 +38,8 @@ export class MovementSystem {
   private canMoveTo(
     x: number, y: number, r: number,
     tiles: TileType[][],
-    width: number, height: number
+    width: number, height: number,
+    furnitureBlocked?: Set<string>
   ): boolean {
     // Check all tiles the entity AABB overlaps
     const minTX = Math.floor(x - r);
@@ -49,6 +51,7 @@ export class MovementSystem {
       for (let tx = minTX; tx <= maxTX; tx++) {
         if (tx < 0 || tx >= width || ty < 0 || ty >= height) return false;
         if (!TILE_PROPERTIES[tiles[ty][tx]].walkable) return false;
+        if (furnitureBlocked?.has(`${tx},${ty}`)) return false;
       }
     }
     return true;

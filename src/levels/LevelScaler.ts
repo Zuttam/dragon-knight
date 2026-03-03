@@ -1,6 +1,7 @@
 import { LevelDefinition } from './LevelDefinition';
 import { TileType } from '../config/tileProperties';
 import { TILT_FACTOR } from '../config/constants';
+import type { FloorData, StairConnection } from '../state/WorldState';
 
 /**
  * Pad a level definition so its tile grid fills the screen.
@@ -71,6 +72,51 @@ export function padLevelToScreen(level: LevelDefinition): LevelDefinition {
     treasurePositions: level.treasurePositions.map(offset),
     torchPositions: level.torchPositions?.map(t => ({ ...t, ...offset(t) })),
     wizardSpawn: level.wizardSpawn ? offset(level.wizardSpawn) : undefined,
+    furniturePositions: level.furniturePositions?.map(f => ({ ...f, ...offset(f) })),
+    additionalFloors: level.additionalFloors?.map(floor => padFloorData(floor, newWidth, newHeight, offsetX, offsetY)),
+    stairs: level.stairs?.map(s => ({
+      ...s,
+      fromX: s.fromX + offsetX,
+      fromY: s.fromY + offsetY,
+      toX: s.toX + offsetX,
+      toY: s.toY + offsetY,
+    })),
+  };
+}
+
+function padFloorData(
+  floor: FloorData,
+  newWidth: number, newHeight: number,
+  offsetX: number, offsetY: number
+): FloorData {
+  // Pad this floor's tiles to match the new dimensions
+  const newTiles: TileType[][] = [];
+  for (let y = 0; y < newHeight; y++) {
+    newTiles[y] = [];
+    for (let x = 0; x < newWidth; x++) {
+      const srcX = x - offsetX;
+      const srcY = y - offsetY;
+      if (srcX >= 0 && srcX < floor.width && srcY >= 0 && srcY < floor.height) {
+        newTiles[y][x] = floor.tiles[srcY][srcX];
+      } else {
+        newTiles[y][x] = TileType.WALL;
+      }
+    }
+  }
+
+  const offset = (pos: { x: number; y: number }) => ({
+    x: pos.x + offsetX,
+    y: pos.y + offsetY,
+  });
+
+  return {
+    ...floor,
+    tiles: newTiles,
+    width: newWidth,
+    height: newHeight,
+    furniture: floor.furniture.map(f => ({ ...f, ...offset(f) })),
+    torches: floor.torches.map(t => ({ ...t, ...offset(t) })),
+    treasures: floor.treasures.map(t => ({ ...t, ...offset(t) })),
   };
 }
 

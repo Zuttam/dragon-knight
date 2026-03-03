@@ -152,6 +152,9 @@ export class LoginState implements GameState {
     const trackList = document.getElementById('music-track-list')!;
     const uploadTrackBtn = document.getElementById('upload-track-btn')!;
     const trackFileInput = document.getElementById('track-file-input') as HTMLInputElement;
+    const cameraSettings = document.getElementById('camera-settings')!;
+    const cameraModeSelect = document.getElementById('camera-mode-select') as HTMLSelectElement;
+    const revealMapCb = document.getElementById('reveal-map-enabled') as HTMLInputElement;
 
     const populateModels = (provider: string, selectedModel?: string) => {
       const models = MODELS_BY_PROVIDER[provider] || [];
@@ -259,6 +262,8 @@ export class LoginState implements GameState {
 
         currentActiveTrack = settings.activeTrack ?? -1;
         currentCustomTracks = settings.customTracks ? [...settings.customTracks] : [];
+        if (settings.cameraMode) cameraModeSelect.value = settings.cameraMode;
+        revealMapCb.checked = settings.revealMap === true;
       } else {
         populateModels('openai');
       }
@@ -295,10 +300,15 @@ export class LoginState implements GameState {
       populateModels('openai');
       startBtn.style.display = 'block';
       continueBtn.style.display = 'none';
+      revealMapCb.checked = false;
 
       tracksSection.style.display = musicEnabledCb.checked ? 'block' : 'none';
       renderTrackList();
     }
+
+    // Show camera settings on desktop only
+    const isMobile = 'ontouchstart' in window;
+    cameraSettings.style.display = isMobile ? 'none' : 'block';
 
     // Start music playback when entering the form
     musicManager.applySettings(musicEnabledCb.checked, parseInt(musicVolumeSlider.value, 10) / 100);
@@ -399,6 +409,7 @@ export class LoginState implements GameState {
       }
       const apiKey = wizardApiKeyInput.value.trim() || undefined;
       const model = modelSelect.value || undefined;
+      const cameraMode = cameraModeSelect.value as 'firstPerson' | 'firstPersonLocked' | 'thirdPerson';
       return {
         playerName,
         language,
@@ -408,6 +419,8 @@ export class LoginState implements GameState {
         musicVolume: parseInt(musicVolumeSlider.value, 10) / 100,
         activeTrack: currentActiveTrack,
         customTracks: currentCustomTracks.length > 0 ? currentCustomTracks : undefined,
+        cameraMode: cameraMode !== 'thirdPerson' ? cameraMode : undefined,
+        revealMap: revealMapCb.checked || undefined,
         llmProvider: provider,
         llmApiKey: apiKey,
         llmModel: model,

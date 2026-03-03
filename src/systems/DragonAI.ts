@@ -19,6 +19,7 @@ export class DragonAI {
     tiles?: TileType[][],
     worldWidth?: number,
     worldHeight?: number,
+    furnitureBlocked?: Set<string>,
   ): void {
     const prevState = dragon.aiState;
 
@@ -29,7 +30,7 @@ export class DragonAI {
         break;
 
       case DragonAIState.PATROL:
-        this.doPatrol(dragon, time, delta, tiles, worldWidth, worldHeight);
+        this.doPatrol(dragon, time, delta, tiles, worldWidth, worldHeight, furnitureBlocked);
         if (playerDetected && playerPos) {
           dragon.lastKnownPlayerPos = { ...playerPos };
           dragon.aiState = DragonAIState.ALERT;
@@ -61,11 +62,11 @@ export class DragonAI {
         break;
 
       case DragonAIState.ATTACK:
-        this.doAttack(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight);
+        this.doAttack(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight, furnitureBlocked);
         break;
 
       case DragonAIState.SEARCH:
-        this.doSearch(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight);
+        this.doSearch(dragon, time, delta, playerDetected, playerPos, tiles, worldWidth, worldHeight, furnitureBlocked);
         break;
     }
 
@@ -150,6 +151,7 @@ export class DragonAI {
   private doPatrol(
     dragon: DragonStateData, time: number, delta: number,
     tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+    furnitureBlocked?: Set<string>,
   ): void {
     if (dragon.waypoints.length === 0) return;
 
@@ -174,7 +176,7 @@ export class DragonAI {
 
     // Use BFS path-following if tiles are available
     if (tiles && worldWidth && worldHeight) {
-      this.followPathToTile(dragon, wp.x, wp.y, dragon.speed, tiles, worldWidth, worldHeight, time);
+      this.followPathToTile(dragon, wp.x, wp.y, dragon.speed, tiles, worldWidth, worldHeight, time, furnitureBlocked);
     } else {
       this.moveToward(dragon, targetX, targetY, dragon.speed);
     }
@@ -193,6 +195,7 @@ export class DragonAI {
     playerDetected: boolean,
     playerPos?: { x: number; y: number },
     tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+    furnitureBlocked?: Set<string>,
   ): void {
     if (playerDetected && playerPos) {
       dragon.lastKnownPlayerPos = { ...playerPos };
@@ -211,7 +214,7 @@ export class DragonAI {
           this.clearPath(dragon);
         }
 
-        this.followPathToTile(dragon, playerPos.x, playerPos.y, dragon.speed * 1.2, tiles, worldWidth, worldHeight, time);
+        this.followPathToTile(dragon, playerPos.x, playerPos.y, dragon.speed * 1.2, tiles, worldWidth, worldHeight, time, furnitureBlocked);
       } else {
         this.moveToward(dragon, playerWorldX, playerWorldY, dragon.speed * 1.2);
       }
@@ -233,6 +236,7 @@ export class DragonAI {
     playerDetected: boolean,
     playerPos?: { x: number; y: number },
     tiles?: TileType[][], worldWidth?: number, worldHeight?: number,
+    furnitureBlocked?: Set<string>,
   ): void {
     if (playerDetected && playerPos) {
       dragon.lastKnownPlayerPos = { ...playerPos };
@@ -248,7 +252,7 @@ export class DragonAI {
       if (tiles && worldWidth && worldHeight) {
         this.followPathToTile(
           dragon, dragon.lastKnownPlayerPos.x, dragon.lastKnownPlayerPos.y,
-          dragon.speed * 0.8, tiles, worldWidth, worldHeight, time,
+          dragon.speed * 0.8, tiles, worldWidth, worldHeight, time, furnitureBlocked,
         );
       } else {
         this.moveToward(dragon, targetX, targetY, dragon.speed * 0.8);
@@ -276,12 +280,13 @@ export class DragonAI {
     speed: number,
     tiles: TileType[][], worldWidth: number, worldHeight: number,
     time: number,
+    furnitureBlocked?: Set<string>,
   ): void {
     // Compute path if we don't have one
     if (!dragon.currentPath) {
       const startX = entityTileX(dragon);
       const startY = entityTileY(dragon);
-      const path = findPath(startX, startY, goalTileX, goalTileY, tiles, worldWidth, worldHeight);
+      const path = findPath(startX, startY, goalTileX, goalTileY, tiles, worldWidth, worldHeight, furnitureBlocked);
       if (!path) {
         // No path — fall back to direct movement
         this.moveToward(dragon, goalTileX + 0.5, goalTileY + 0.5, speed);

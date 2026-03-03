@@ -1,6 +1,6 @@
 // ── Login ──────────────────────────────────────────────
 // login.title, login.subtitle, login.newKnight, login.importSave,
-// login.namePlaceholder, login.age, login.enableMusic, login.musicVolume,
+// login.namePlaceholder, login.age, login.enableMusic, login.musicVolume, login.revealMap,
 // login.apiKeyRequired,
 // login.anthropic, login.openai, login.apiKey, login.show, login.hide,
 // login.beginQuest, login.continueQuest, login.back, login.deleteConfirm,
@@ -13,7 +13,8 @@
 //
 // ── Pause ──────────────────────────────────────────────
 // pause.title, pause.resume, pause.music, pause.musicVolume,
-// pause.exportSave, pause.exitDungeon
+// pause.cameraView, pause.firstPerson, pause.firstPersonLocked, pause.thirdPerson,
+// pause.revealMap, pause.exportSave, pause.exitDungeon
 //
 // ── Game Over ──────────────────────────────────────────
 // gameOver.title, gameOver.subtitle, gameOver.retry, gameOver.mainMenu
@@ -31,6 +32,7 @@
 // wizard.connectionLost, wizard.spellFailed
 //
 // ── Floating text ──────────────────────────────────────
+// floating.floor, floating.groundFloor,
 // floating.healWizard, floating.wizardAtk, floating.wizardSpeed,
 // floating.wizardCloak, floating.wizardFireShield, floating.wizardMaxHP,
 // floating.wizardGift, floating.heal, floating.atkUp, floating.speedUp,
@@ -62,6 +64,7 @@ export type TranslationKey =
   | 'login.namePlaceholder'
   | 'login.age'
   | 'login.enableMusic'
+  | 'login.revealMap'
   | 'login.musicVolume'
   | 'login.customTracks'
   | 'login.uploadTrack'
@@ -91,6 +94,8 @@ export type TranslationKey =
   | 'hud.dragon'
   | 'hud.levelTitle'
   | 'hud.torchPrompt'
+  | 'hud.wardrobePrompt'
+  | 'hud.exitWardrobePrompt'
   | 'hud.atkPowerUp'
   | 'hud.spdPowerUp'
   | 'hud.clkPowerUp'
@@ -102,6 +107,11 @@ export type TranslationKey =
   | 'pause.musicVolume'
   | 'pause.track'
   | 'pause.defaultTheme'
+  | 'pause.cameraView'
+  | 'pause.firstPerson'
+  | 'pause.firstPersonLocked'
+  | 'pause.thirdPerson'
+  | 'pause.revealMap'
   | 'pause.exportSave'
   | 'pause.exitDungeon'
   // Game Over
@@ -136,6 +146,8 @@ export type TranslationKey =
   | 'wizard.connectionLost'
   | 'wizard.spellFailed'
   // Floating text
+  | 'floating.floor'
+  | 'floating.groundFloor'
   | 'floating.healWizard'
   | 'floating.wizardAtk'
   | 'floating.wizardSpeed'
@@ -153,6 +165,9 @@ export type TranslationKey =
   | 'floating.lit'
   | 'floating.extinguished'
   | 'floating.dangerApproaches'
+  | 'floating.hiding'
+  | 'floating.exitWardrobe'
+  | 'floating.wardrobeDestroyed'
   // Mobile
   | 'mobile.attack'
   // Level names

@@ -9,6 +9,7 @@ export const en: TranslationMap = {
   'login.namePlaceholder': 'Enter your name, Knight...',
   'login.age': 'Age',
   'login.enableMusic': 'Background Music',
+  'login.revealMap': 'Reveal Map',
   'login.musicVolume': 'Music Volume',
   'login.customTracks': 'Custom Tracks',
   'login.uploadTrack': '+ Upload',
@@ -39,6 +40,8 @@ export const en: TranslationMap = {
   'hud.dragon': 'Dragon',
   'hud.levelTitle': 'Level {{level}} - {{name}}',
   'hud.torchPrompt': '[E] Light / Extinguish',
+  'hud.wardrobePrompt': '[E] Hide in Closet',
+  'hud.exitWardrobePrompt': '[E] Exit Closet',
   'hud.atkPowerUp': 'ATK',
   'hud.spdPowerUp': 'SPD',
   'hud.clkPowerUp': 'CLK',
@@ -51,6 +54,11 @@ export const en: TranslationMap = {
   'pause.musicVolume': 'Volume',
   'pause.track': 'Track',
   'pause.defaultTheme': 'Default Theme',
+  'pause.cameraView': 'Camera View',
+  'pause.firstPerson': 'First Person',
+  'pause.firstPersonLocked': 'First Person (Locked)',
+  'pause.thirdPerson': 'Third Person',
+  'pause.revealMap': 'Reveal Map',
   'pause.exportSave': 'Export Save',
   'pause.exitDungeon': 'Exit Dungeon',
 
@@ -89,6 +97,8 @@ export const en: TranslationMap = {
   'wizard.spellFailed': 'Wizard spell failed',
 
   // Floating text
+  'floating.floor': 'Floor {{level}}',
+  'floating.groundFloor': 'Ground Floor',
   'floating.healWizard': '+HP (Wizard)',
   'floating.wizardAtk': 'WIZARD ATK!',
   'floating.wizardSpeed': 'WIZARD SPEED!',
@@ -106,6 +116,9 @@ export const en: TranslationMap = {
   'floating.lit': 'Lit!',
   'floating.extinguished': 'Extinguished!',
   'floating.dangerApproaches': 'Danger approaches!',
+  'floating.hiding': 'Hiding!',
+  'floating.exitWardrobe': 'You emerge!',
+  'floating.wardrobeDestroyed': 'SMASHED!',
 
   // Mobile
   'mobile.attack': 'ATTACK',

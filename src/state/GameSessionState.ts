@@ -44,7 +44,7 @@ export function createGameSession(
       levelDef.dragonFireDamageMultiplier,
       levelDef.dragonStartsPatrolling ? DragonAIState.PATROL : DragonAIState.SLEEP
     ),
-    world: createWorldState(levelDef.tiles, levelDef.width, levelDef.height, levelDef.treasurePositions, levelDef.torchPositions),
+    world: createWorldState(levelDef.tiles, levelDef.width, levelDef.height, levelDef.treasurePositions, levelDef.torchPositions, levelDef.furniturePositions, levelDef.additionalFloors, levelDef.stairs),
     level: levelDef.level,
     levelName: levelDef.name,
     playerName,

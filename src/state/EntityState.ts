@@ -46,6 +46,12 @@ export interface KnightState {
   joystickForceX: number;
   joystickForceY: number;
   mobileAttackPressed: boolean;
+
+  // Wardrobe hiding
+  isHidingInWardrobe: boolean;
+  hiddenWardrobeKey: string | null;
+  wardrobeEntryTileX: number;
+  wardrobeEntryTileY: number;
 }
 
 export interface DragonStateData {
@@ -102,6 +108,10 @@ export function createKnightState(tileX: number, tileY: number, maxHP: number, b
     joystickForceX: 0,
     joystickForceY: 0,
     mobileAttackPressed: false,
+    isHidingInWardrobe: false,
+    hiddenWardrobeKey: null,
+    wardrobeEntryTileX: 0,
+    wardrobeEntryTileY: 0,
   };
 }
 

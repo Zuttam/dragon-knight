@@ -1,4 +1,5 @@
 import { TileType } from '../config/tileProperties';
+import { FurnitureState, FloorData, StairConnection } from '../state/WorldState';
 
 export interface LevelDefinition {
   level: number;
@@ -16,4 +17,7 @@ export interface LevelDefinition {
   torchPositions?: { x: number; y: number; lit: boolean }[];
   wizardSpawn?: { x: number; y: number };
   dragonStartsPatrolling?: boolean;
+  furniturePositions?: FurnitureState[];
+  additionalFloors?: FloorData[];
+  stairs?: StairConnection[];
 }

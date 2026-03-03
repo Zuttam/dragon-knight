@@ -147,7 +147,7 @@ export class EffectRenderer {
     // Only show if dragon tile is visible to player
     const dtx = Math.floor(dragon.x);
     const dty = Math.floor(dragon.y);
-    if (!visibility.visible[dty]?.[dtx]) {
+    if (!visibility.isVisible(dtx, dty)) {
       if (this.fovConeMesh) this.fovConeMesh.visible = false;
       return;
     }

@@ -20,6 +20,8 @@ export interface UserSettings {
   musicVolume?: number;
   activeTrack?: number;
   customTracks?: CustomTrackMeta[];
+  cameraMode?: 'firstPerson' | 'firstPersonLocked' | 'thirdPerson';
+  revealMap?: boolean;
   timestamp: number;
 }
 

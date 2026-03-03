@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { lerp, clamp } from '../core/MathUtils';
 import { TILT_FACTOR } from '../config/constants';
 
+export type CameraControllerMode = 'thirdPerson' | 'firstPerson';
+
 export class CameraController {
   private camera: THREE.OrthographicCamera;
+  private perspCamera: THREE.PerspectiveCamera | null = null;
   private targetX: number = 0;
   private targetZ: number = 0;
   private smoothing: number = 0.08;
@@ -18,8 +21,15 @@ export class CameraController {
 
   private resizeHandler: (() => void) | null = null;
 
-  constructor(camera: THREE.OrthographicCamera) {
+  // FPS mode state
+  private _mode: CameraControllerMode = 'thirdPerson';
+  private _yaw: number = 0;
+  private _pitch: number = 0;
+  private sensitivity: number = 0.003;
+
+  constructor(camera: THREE.OrthographicCamera, perspCamera?: THREE.PerspectiveCamera) {
     this.camera = camera;
+    this.perspCamera = perspCamera || null;
   }
 
   /**
@@ -68,9 +78,17 @@ export class CameraController {
 
   /**
    * Smoothly move camera toward target, clamped to world bounds.
-   * Uses tilt-corrected Z extent so the full map stays visible.
+   * Delegates to the appropriate mode handler.
    */
   update(worldWidth: number, worldHeight: number): void {
+    if (this._mode === 'firstPerson') {
+      this.updateFirstPerson();
+      return;
+    }
+    this.updateThirdPerson(worldWidth, worldHeight);
+  }
+
+  private updateThirdPerson(worldWidth: number, worldHeight: number): void {
     const viewW = this.camera.right; // half-width in world X
     // Actual Z half-extent on the ground, accounting for camera tilt
     const viewZExtent = this.camera.top * TILT_FACTOR;
@@ -102,6 +120,43 @@ export class CameraController {
 
     this.camera.position.set(cx, this.offsetY, cz + this.offsetZ);
     this.camera.lookAt(cx, 0, cz);
+  }
+
+  private updateFirstPerson(): void {
+    if (!this.perspCamera) return;
+    this.perspCamera.position.set(this.targetX, 1.5, this.targetZ);
+    const euler = new THREE.Euler(this._pitch, this._yaw, 0, 'YXZ');
+    this.perspCamera.quaternion.setFromEuler(euler);
+  }
+
+  applyMouseLook(dx: number, dy: number): void {
+    this._yaw -= dx * this.sensitivity;
+    this._pitch -= dy * this.sensitivity;
+    this._pitch = clamp(this._pitch, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
+  }
+
+  getYaw(): number {
+    return this._yaw;
+  }
+
+  getMode(): CameraControllerMode {
+    return this._mode;
+  }
+
+  setMode(mode: CameraControllerMode): void {
+    this._mode = mode;
+  }
+
+  initFPSFromFacingAngle(facingAngle: number): void {
+    // facingAngle: 0 = right (+X), PI/2 = down (+Z)
+    // yaw in Three.js: 0 = -Z, PI/2 = -X
+    // Convert: yaw = -facingAngle + PI/2
+    this._yaw = -facingAngle - Math.PI / 2;
+    this._pitch = 0;
+  }
+
+  setYawFromFacingAngle(facingAngle: number): void {
+    this._yaw = -facingAngle - Math.PI / 2;
   }
 
   dispose(): void {

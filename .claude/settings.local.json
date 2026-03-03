@@ -24,7 +24,8 @@
       "WebFetch(domain:localhost)",
       "Bash(curl:*)",
       "Bash(npx:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

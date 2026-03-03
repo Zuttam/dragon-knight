@@ -123,10 +123,7 @@ export class WizardChatOverlay {
       <div class="wizard-chat-box">
         <div class="wizard-chat-header">
           <span class="wizard-chat-title">${t('wizard.title')}</span>
-          <div class="wizard-header-actions">
-            <button class="wizard-settings-btn" title="${t('wizard.changeApiKey')}">&#9881;</button>
-            <button class="wizard-close-btn">&times;</button>
-          </div>
+          <button class="wizard-close-btn">&times;</button>
         </div>
         <div class="wizard-messages" id="wizard-messages"></div>
         <div class="wizard-status" id="wizard-status"></div>
@@ -143,9 +140,6 @@ export class WizardChatOverlay {
     this.statusEl = this.container.querySelector('#wizard-status');
 
     this.container.querySelector('.wizard-close-btn')?.addEventListener('click', () => this.onClose());
-    this.container.querySelector('.wizard-settings-btn')?.addEventListener('click', () => {
-      this.showApiKeyPrompt();
-    });
 
     const sendMessage = () => {
       if (!this.inputEl) return;

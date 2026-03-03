@@ -17,6 +17,12 @@ export class EntityRenderer {
   private knightMaterials: THREE.MeshStandardMaterial[] = [];
   isSwordSwinging: boolean = false;
 
+  // FPS Sword
+  private fpsSwordGroup: THREE.Group | null = null;
+  private perspCamera: THREE.PerspectiveCamera | null = null;
+  private isFPSSwordSwinging: boolean = false;
+  private fpsSwordTime: number = 0;
+
   // Dragon (cached refs to avoid per-frame traverse)
   private dragonGroup: THREE.Group | null = null;
   private dragonMaterials: THREE.MeshStandardMaterial[] = [];
@@ -51,9 +57,20 @@ export class EntityRenderer {
 
     // Torch light (warm orange, follows knight)
     this.knightTorch = new THREE.PointLight(0xffaa44, 1.0, 8);
-    this.knightTorch.position.y = 1.2;
+    this.knightTorch.position.y = 1.5;
     this.knightTorch.castShadow = false;
     this.scene.add(this.knightTorch);
+  }
+
+  buildFPSSword(perspCamera: THREE.PerspectiveCamera): void {
+    this.perspCamera = perspCamera;
+    this.fpsSwordGroup = ModelFactory.createFPSSword();
+    // Position in lower-right of camera view (camera-local space)
+    this.fpsSwordGroup.position.set(0.4, -0.35, -0.5);
+    this.fpsSwordGroup.rotation.set(0, 0, -0.15); // slight tilt
+    this.fpsSwordGroup.scale.setScalar(0.6);
+    this.fpsSwordGroup.visible = false;
+    perspCamera.add(this.fpsSwordGroup);
   }
 
   buildDragon(): void {
@@ -124,7 +141,7 @@ export class EntityRenderer {
     // Fog of war check — hide wizard if in HIDDEN state or not visible
     const wtx = entityTileX(wizard);
     const wty = entityTileY(wizard);
-    const inFog = !visibility.visible[wty]?.[wtx];
+    const inFog = !visibility.isVisible(wtx, wty);
 
     if (wizard.dialogStatus === WizardDialogStatus.HIDDEN || inFog) {
       this.wizardGroup.visible = false;
@@ -138,11 +155,11 @@ export class EntityRenderer {
     switch (wizard.dialogStatus) {
       case WizardDialogStatus.REVEALED: {
         // Pulsing shimmer (0.1 - 0.3 opacity)
-        const shimmer = 0.2 + Math.sin(this.wizardTime * 3) * 0.1;
+        const shimmer = 0.65 + Math.sin(this.wizardTime * 3) * 0.15;
         this.setMaterialsOpacity(this.wizardMaterials, shimmer);
         if (this.wizardLight) {
           this.wizardLight.visible = true;
-          this.wizardLight.intensity = shimmer * 2;
+          this.wizardLight.intensity = shimmer * 1.2;
         }
         break;
       }
@@ -200,7 +217,7 @@ export class EntityRenderer {
     }
   }
 
-  updateKnight(knight: KnightState, delta: number): void {
+  updateKnight(knight: KnightState, delta: number, isFirstPerson: boolean = false): void {
     if (!this.knightGroup) return;
 
     // Position: game tileX → Three.js x, game tileY → Three.js z
@@ -210,25 +227,69 @@ export class EntityRenderer {
     // In Three.js, rotation.y = 0 faces +Z, so we need: -angle + PI/2
     this.knightGroup.rotation.y = -knight.facingAngle + Math.PI / 2;
 
+    if (isFirstPerson) {
+      // Hide knight and sword in FPS mode, keep torch light
+      this.knightGroup.visible = false;
+      if (this.swordGroup) this.swordGroup.visible = false;
+      if (this.knightTorch) {
+        this.knightTorch.position.set(knight.x, 1.5, knight.y);
+      }
+      // Show FPS sword and apply idle bob
+      if (this.fpsSwordGroup) {
+        this.fpsSwordGroup.visible = !knight.isHidingInWardrobe;
+        if (!this.isFPSSwordSwinging && this.fpsSwordGroup.visible) {
+          this.fpsSwordTime += delta * 0.003;
+          const breathBob = Math.sin(this.fpsSwordTime * 1.5) * 0.008;
+          const walkBob = knight.isMoving ? Math.sin(this.fpsSwordTime * 8) * 0.015 : 0;
+          const walkSway = knight.isMoving ? Math.cos(this.fpsSwordTime * 4) * 0.008 : 0;
+          this.fpsSwordGroup.position.set(
+            0.4 + walkSway,
+            -0.35 + breathBob + walkBob,
+            -0.5
+          );
+        }
+      }
+      return;
+    }
+
+    // Hide FPS sword in third-person
+    if (this.fpsSwordGroup) this.fpsSwordGroup.visible = false;
+
+    // Completely hidden inside wardrobe
+    if (knight.isHidingInWardrobe) {
+      this.knightGroup.visible = false;
+      if (this.swordGroup) this.swordGroup.visible = false;
+      if (this.knightTorch) this.knightTorch.intensity = 0;
+      return;
+    }
+
+    // Restore torch intensity (may have been dimmed by wardrobe)
+    if (this.knightTorch && this.knightTorch.intensity === 0) {
+      this.knightTorch.intensity = 1.0;
+    }
+
     // Cloak effect (transparency)
     const knightAlpha = knight.isCloaked ? 0.3 : 1.0;
     this.knightGroup.visible = knightAlpha > 0.01;
     this.setMaterialsOpacity(this.knightMaterials, knightAlpha);
 
     // Sword position
-    if (this.swordGroup && !this.isSwordSwinging) {
-      const handDist = 0.35;
-      this.swordGroup.position.set(
-        knight.x + Math.cos(knight.facingAngle) * handDist,
-        0.5,
-        knight.y + Math.sin(knight.facingAngle) * handDist
-      );
-      this.swordGroup.rotation.y = -knight.facingAngle + Math.PI / 2;
+    if (this.swordGroup) {
+      this.swordGroup.visible = true;
+      if (!this.isSwordSwinging) {
+        const handDist = 0.35;
+        this.swordGroup.position.set(
+          knight.x + Math.cos(knight.facingAngle) * handDist,
+          0.5,
+          knight.y + Math.sin(knight.facingAngle) * handDist
+        );
+        this.swordGroup.rotation.y = -knight.facingAngle + Math.PI / 2;
+      }
     }
 
     // Torch follows knight
     if (this.knightTorch) {
-      this.knightTorch.position.set(knight.x, 1.2, knight.y);
+      this.knightTorch.position.set(knight.x, 1.5, knight.y);
     }
 
     // Simple walk bob animation
@@ -261,6 +322,71 @@ export class EntityRenderer {
       },
       onComplete: () => {
         this.isSwordSwinging = false;
+      },
+    });
+  }
+
+  swingFPSSword(tweens: TweenManager): void {
+    if (!this.fpsSwordGroup || this.isFPSSwordSwinging) return;
+    this.isFPSSwordSwinging = true;
+
+    const restPos = { x: 0.4, y: -0.35, z: -0.5 };
+    const restRot = { x: 0, y: 0, z: -0.15 };
+
+    tweens.add({
+      from: 0,
+      to: 1,
+      duration: 300,
+      ease: 'power2',
+      onUpdate: (t) => {
+        if (!this.fpsSwordGroup) return;
+        if (t < 0.3) {
+          // Wind-up: pull sword back-right
+          const p = t / 0.3;
+          this.fpsSwordGroup.position.set(
+            restPos.x + p * 0.1,
+            restPos.y + p * 0.05,
+            restPos.z + p * 0.1
+          );
+          this.fpsSwordGroup.rotation.set(
+            restRot.x - p * 0.3,
+            restRot.y + p * 0.4,
+            restRot.z
+          );
+        } else if (t < 0.7) {
+          // Slash: sweep from right to left
+          const p = (t - 0.3) / 0.4;
+          this.fpsSwordGroup.position.set(
+            restPos.x + 0.1 - p * 0.25,
+            restPos.y + 0.05 - p * 0.03,
+            restPos.z + 0.1 - p * 0.05
+          );
+          this.fpsSwordGroup.rotation.set(
+            restRot.x - 0.3 + p * 0.5,
+            restRot.y + 0.4 - p * 0.8,
+            restRot.z - p * 0.3
+          );
+        } else {
+          // Return to rest
+          const p = (t - 0.7) / 0.3;
+          this.fpsSwordGroup.position.set(
+            restPos.x - 0.15 + p * 0.15,
+            restPos.y + 0.02 - p * 0.02,
+            restPos.z + 0.05 - p * 0.05
+          );
+          this.fpsSwordGroup.rotation.set(
+            restRot.x + 0.2 * (1 - p),
+            restRot.y - 0.4 * (1 - p),
+            restRot.z - 0.3 * (1 - p)
+          );
+        }
+      },
+      onComplete: () => {
+        this.isFPSSwordSwinging = false;
+        if (this.fpsSwordGroup) {
+          this.fpsSwordGroup.position.set(restPos.x, restPos.y, restPos.z);
+          this.fpsSwordGroup.rotation.set(restRot.x, restRot.y, restRot.z);
+        }
       },
     });
   }
@@ -301,7 +427,7 @@ export class EntityRenderer {
     const dtx = entityTileX(dragon);
     const dty = entityTileY(dragon);
 
-    if (!visibility.visible[dty]?.[dtx]) {
+    if (!visibility.isVisible(dtx, dty)) {
       this.dragonGroup.visible = false;
       this.setMaterialsOpacity(this.dragonMaterials, 0);
       return;
@@ -319,6 +445,26 @@ export class EntityRenderer {
 
     this.dragonGroup.visible = alpha > 0.01;
     this.setMaterialsOpacity(this.dragonMaterials, alpha);
+  }
+
+  /** Show/hide the dragon group (used when player is on a different floor). */
+  setDragonVisible(visible: boolean): void {
+    if (this.dragonGroup) {
+      this.dragonGroup.visible = visible;
+      if (!visible) {
+        this.setMaterialsOpacity(this.dragonMaterials, 0);
+      }
+    }
+  }
+
+  /** Show/hide the wizard group (used when player is on a different floor). */
+  setWizardVisible(visible: boolean): void {
+    if (this.wizardGroup) {
+      this.wizardGroup.visible = visible;
+    }
+    if (this.wizardLight) {
+      this.wizardLight.visible = visible;
+    }
   }
 
   updateTreasures(treasures: TreasureState[], delta: number): void {
@@ -396,6 +542,9 @@ export class EntityRenderer {
     if (this.knightGroup) this.scene.remove(this.knightGroup);
     if (this.swordGroup) this.scene.remove(this.swordGroup);
     if (this.knightTorch) this.scene.remove(this.knightTorch);
+    if (this.fpsSwordGroup && this.perspCamera) {
+      this.perspCamera.remove(this.fpsSwordGroup);
+    }
     if (this.dragonGroup) this.scene.remove(this.dragonGroup);
     if (this.wizardGroup) this.scene.remove(this.wizardGroup);
     if (this.wizardLight) this.scene.remove(this.wizardLight);
@@ -403,6 +552,8 @@ export class EntityRenderer {
     this.knightGroup = null;
     this.swordGroup = null;
     this.knightTorch = null;
+    this.fpsSwordGroup = null;
+    this.perspCamera = null;
     this.dragonGroup = null;
     this.wizardGroup = null;
     this.wizardOrb = null;

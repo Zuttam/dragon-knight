@@ -35,6 +35,10 @@ export const WOOD_WALL_HP = 3;
 export const BURNING_WOOD_DURATION = 3000; // ms
 export const BURNING_WOOD_DAMAGE_PER_SEC = 15;
 
+// Wardrobe
+export const WARDROBE_HP = 2;
+export const WARDROBE_INTERACT_RANGE = 1.5; // tiles
+
 // Dragon visibility
 export const DRAGON_VISIBILITY_FADE_START = 6; // tiles
 export const DRAGON_VISIBILITY_FADE_END = 10; // tiles
@@ -44,7 +48,7 @@ export const WIZARD_INTERACTION_RANGE = 2;        // tiles to trigger dialog
 export const WIZARD_DRAGON_SAFETY_RANGE = 8;      // min dragon distance for wizard to engage
 export const WIZARD_SPAWN_MIN_DIST_KNIGHT = 8;    // min distance from knight spawn
 export const WIZARD_SPAWN_MIN_DIST_DRAGON = 10;   // min distance from dragon spawn
-export const WIZARD_VISIBILITY_RANGE = 5;         // shimmer visible range
+export const WIZARD_VISIBILITY_RANGE = 8;         // shimmer visible range
 export const WIZARD_SPAWN_CHANCE = 0.65;          // 65% chance per level
 export const WIZARD_HEAL_AMOUNT = 80;
 export const WIZARD_ATTACK_BOOST = 2.5;
